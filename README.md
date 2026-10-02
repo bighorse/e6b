@@ -4,6 +4,10 @@ A browser simulation of the ASA CX-3 electronic flight computer (E6-B), with the
 key layout, menu structure and on-screen workflow as the handheld unit. It is plain
 HTML/CSS/JS with no build step and no dependencies.
 
+## Live site
+
+**https://bighorse.github.io/e6b/** (GitHub Pages, updated on every push)
+
 ## Run
 
 Open `index.html` in a browser, or serve the folder:
