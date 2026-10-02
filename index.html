@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#16181c">
+<title>CX-3 Flight Computer</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="device" class="device">
+    <div class="brand">
+      <span class="model">CX-3</span>
+      <span class="sub">FLIGHT COMPUTER</span>
+    </div>
+
+    <div class="bezel">
+      <div id="screen" class="screen off"></div>
+    </div>
+
+    <div class="menukeys">
+      <button class="k menu" data-k="FLT">FLT</button>
+      <button class="k menu" data-k="PLAN">PLAN</button>
+      <button class="k menu" data-k="TIMER">TIMER</button>
+      <button class="k menu" data-k="CALC">CALC</button>
+      <button class="k menu" data-k="W/B">W/B</button>
+    </div>
+
+    <div class="navzone">
+      <div class="side">
+        <button class="k fn" data-k="SET">SET</button>
+        <button class="k fn" data-k="BACK">BACK</button>
+      </div>
+      <div class="dpad">
+        <button class="k arrow up" data-k="UP" aria-label="Up"><span>▲</span></button>
+        <button class="k arrow left" data-k="LEFT" aria-label="Left"><span>◀</span></button>
+        <button class="k arrow right" data-k="RIGHT" aria-label="Right"><span>▶</span></button>
+        <button class="k arrow down" data-k="DOWN" aria-label="Down"><span>▼</span></button>
+        <button class="k enter" data-k="ENTER" aria-label="On/Off Enter"><small>ON/OFF</small>ENTER</button>
+      </div>
+      <div class="side">
+        <button class="k fn" data-k="M">M</button>
+        <button class="k fn clr" data-k="CLR">CLR</button>
+      </div>
+    </div>
+
+    <div class="pad">
+      <button class="k op2" data-k="STO">STO</button>
+      <button class="k op2" data-k="RCL">RCL</button>
+      <button class="k op2" data-k=":">:</button>
+      <button class="k op" data-k="÷">÷</button>
+
+      <button class="k num" data-k="7">7</button>
+      <button class="k num" data-k="8">8</button>
+      <button class="k num" data-k="9">9</button>
+      <button class="k op" data-k="×">×</button>
+
+      <button class="k num" data-k="4">4</button>
+      <button class="k num" data-k="5">5</button>
+      <button class="k num" data-k="6">6</button>
+      <button class="k op" data-k="-">−</button>
+
+      <button class="k num" data-k="1">1</button>
+      <button class="k num" data-k="2">2</button>
+      <button class="k num" data-k="3">3</button>
+      <button class="k op" data-k="+">+</button>
+
+      <button class="k num" data-k="0">0</button>
+      <button class="k num" data-k=".">.</button>
+      <button class="k num" data-k="+/-">+/−</button>
+      <button class="k op eq" data-k="=">=</button>
+    </div>
+
+    <div class="foot-brand">ELECTRONIC FLIGHT COMPUTER</div>
+  </div>
+</div>
+
+<details class="help">
+  <summary>Keyboard &amp; tips</summary>
+  <ul>
+    <li><b>Enter</b> = ENTER (hold 3&nbsp;s = power off) · <b>Esc</b> = BACK · <b>Del</b> = CLR · <b>Backspace</b> = ◀</li>
+    <li><b>F</b> FLT · <b>P</b> PLAN · <b>T</b> TIMER · <b>C</b> CALC · <b>W</b> W/B · <b>S</b> SET · <b>M</b> Favorites</li>
+    <li><b>K</b> STO · <b>R</b> RCL · <b>N</b> +/− · <b>:</b> or <b>;</b> time separator</li>
+    <li>◀▶ on a value changes its units. Inputs accept arithmetic, e.g. <code>120+15</code>.</li>
+    <li>Times: <code>1:30</code> = 1 h 30 min. Lat/Long: <code>40:30</code> = 40°30′, +/− for S/W.</li>
+  </ul>
+</details>
+
+<script src="js/units.js"></script>
+<script src="js/aviation.js"></script>
+<script src="js/functions.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
