@@ -61,3 +61,22 @@ node --test test/*.test.js
 
 The calculations use the ICAO standard atmosphere, compressible-flow airspeed
 equations, and AIM 5-3-8 holding entry sectors.
+
+## Deploy to a Baidu Cloud (百度智能云) BCC server
+
+1. **Prepare the server once.** Upload `deploy/setup-server.sh`, then run
+   `sudo bash setup-server.sh`. It installs nginx and rsync, and serves `/var/www/cx3`.
+   In the BCC console, open inbound **TCP 80** (and 22) in the instance's security group.
+2. **Deploy**, in either of two ways:
+   - **GitHub Actions (automatic):** add these repository secrets under
+     *Settings → Secrets and variables → Actions*:
+     - `DEPLOY_HOST`: the server's public IP
+     - `DEPLOY_SSH_KEY`: a private key whose public key is in the server's `~/.ssh/authorized_keys`
+     - Optional: `DEPLOY_USER` (default `root`), `DEPLOY_PORT` (default `22`),
+       `DEPLOY_PATH` (default `/var/www/cx3`)
+
+     Every push to `main`/`master`/`feature/cx3-flight-computer` then runs the tests and uploads
+     the site. You can also start it by hand from the Actions tab (*Run workflow*).
+   - **From your own machine:** `DEPLOY_HOST=<ip> deploy/deploy.sh`
+3. Open `http://<server-ip>/`. To use a domain on a mainland China server, the domain
+   needs ICP filing (备案) first. Then set `server_name` in nginx and add HTTPS.

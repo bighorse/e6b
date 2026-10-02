@@ -1,0 +1,57 @@
+name: Deploy to Baidu Cloud
+
+on:
+  push:
+    branches: [main, master, feature/cx3-flight-computer]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        run: node --test test/*.test.js
+
+      - name: Check deploy secrets
+        id: secrets
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "DEPLOY_HOST secret is not set; skipping deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload over SSH
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER || 'root' }}
+          PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEST: ${{ secrets.DEPLOY_PATH || '/var/www/cx3' }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
+          rsync -avz --delete -e "ssh -i ~/.ssh/id_deploy -p $PORT" \
+            index.html css js "$USER@$HOST:$DEST/"
+
+      - name: Smoke test
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: curl -fsS "http://$HOST/" | grep -q "CX-3 Flight Computer"
