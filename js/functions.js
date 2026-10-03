@@ -127,13 +127,19 @@
       return { wca: w.wca, thdg: w.thdg, mhdg: mh, chdg: A.dir360(mh + (v.dev || 0)), gs: w.gs };
     });
 
+  // Real CX-3: enter any four of GS, TAS, TCrs, THdg, WSpd, WDir; the other two are solved
   def('windcorr', 'Wind Correction',
-    [I('gs', 'GS', 'speed'), I('tas', 'TAS', 'speed'), I('tcrs', 'TCrs', 'dir'), I('thdg', 'THdg', 'dir'),
-     O('wspd', 'WSpd', 'speed'), O('wdir', 'WDir', 'dir'), O('wca', 'WCA', 'wca')],
+    [I('gs', 'GS', 'speed', { solve: true }), I('tas', 'TAS', 'speed', { solve: true }),
+     I('tcrs', 'TCrs', 'dir', { solve: true }), I('thdg', 'THdg', 'dir', { solve: true }),
+     I('wspd', 'WSpd', 'speed', { solve: true }), I('wdir', 'WDir', 'dir', { solve: true }),
+     O('wca', 'WCA', 'wca')],
     function (v) {
-      if (!has(v.gs, v.tas, v.tcrs, v.thdg)) return;
-      return A.unknownWind(v.gs, v.tas, v.tcrs, v.thdg);
-    });
+      var r = A.windSolve(v) || {};
+      if (r.error) return { error: r.error };
+      var tc = v.tcrs != null ? v.tcrs : r.tcrs, th = v.thdg != null ? v.thdg : r.thdg;
+      if (tc != null && th != null) r.wca = A.norm180(th - tc);
+      return r;
+    }, { solver: true });
 
   def('windcomp', 'Wind Component',
     [I('rwy', 'Rwy', 'rwy'), I('wdir', 'WDir', 'dir'), I('wspd', 'WSpd', 'speed'),
@@ -333,7 +339,7 @@
 
   // ---------------- Menus ----------------
   var MENUS = {
-    FLT: { title: 'Flight', tag: 'FLIGHT', items: [
+    FLT: { title: 'Flight', tag: 'E6-B', items: [
       { label: 'Altitude', menu: 'ALT' },
       { label: 'Airspeed', menu: 'AIRSPD' },
       { label: 'Fuel', menu: 'FUEL' },
@@ -351,29 +357,29 @@
       { label: 'Holding Pattern', fn: 'hold' },
       { label: 'Unit Conversions', menu: 'CONV' }
     ] },
-    ALT: { title: 'Altitude', tag: 'FLIGHT', items: [
+    ALT: { title: 'Altitude', tag: 'E6-B', items: [
       { label: 'Pressure Altitude', fn: 'palt' },
       { label: 'Density Altitude', fn: 'dalt' },
       { label: 'Cloud Base', fn: 'cloud' },
       { label: 'Standard Atmosphere', fn: 'stdatm' }
     ] },
-    AIRSPD: { title: 'Airspeed', tag: 'FLIGHT', items: [
+    AIRSPD: { title: 'Airspeed', tag: 'E6-B', items: [
       { label: 'Planned TAS', fn: 'ptas' },
       { label: 'Actual TAS', fn: 'atas' },
       { label: 'Mach Number', fn: 'mach' }
     ] },
-    FUEL: { title: 'Fuel', tag: 'FLIGHT', items: [
+    FUEL: { title: 'Fuel', tag: 'E6-B', items: [
       { label: 'Fuel Burn', fn: 'fburn' },
       { label: 'Fuel Rate', fn: 'frate' },
       { label: 'Endurance', fn: 'endur' },
       { label: 'Fuel Weight', fn: 'fwt' }
     ] },
-    CLIMB: { title: 'Climb & Descent', tag: 'FLIGHT', items: [
+    CLIMB: { title: 'Climb & Descent', tag: 'E6-B', items: [
       { label: 'Climb / Descent', fn: 'climb' },
       { label: 'Top of Descent', fn: 'tod' },
       { label: 'Required Rate', fn: 'reqrate' }
     ] },
-    CONV: { title: 'Unit Conversions', tag: 'FLIGHT', items: Units.CONVERSIONS.map(function (c) {
+    CONV: { title: 'Unit Conversions', tag: 'E6-B', items: Units.CONVERSIONS.map(function (c) {
       return { label: c.title, fn: 'conv_' + c.type };
     }) },
     WB: { title: 'Weight and Balance', tag: 'E6-B', items: [

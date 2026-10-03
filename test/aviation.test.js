@@ -111,3 +111,27 @@ test('function calcs', () => {
   const pr = FNS.profile.calc({ tas: 120, frate: 10, fcap: 50 });
   near(pr.endur, 5, 1e-9); near(pr.range, 600, 1e-9);
 });
+
+test('wind correction solver: any four of six', () => {
+  const truth = { gs: 134.8391141794225, tas: 128, tcrs: 90, thdg: 95.82482525407413, wspd: 15, wdir: 210 };
+  const pairs = [['wspd', 'wdir'], ['gs', 'thdg'], ['gs', 'tcrs'], ['tas', 'thdg'], ['gs', 'tas']];
+  for (const pair of pairs) {
+    const v = { ...truth }; pair.forEach(k => { v[k] = null; });
+    const r = A.windSolve(v);
+    for (const k of pair) near(r[k], truth[k], 1e-6, pair.join('+') + ' ' + k);
+  }
+  // not uniquely solvable: both directions unknown, or a wind part mixed with another unknown
+  assert.equal(A.windSolve({ ...truth, tcrs: null, thdg: null }), null);
+  assert.equal(A.windSolve({ ...truth, gs: null, wdir: null }), null);
+  // not exactly two unknowns
+  assert.equal(A.windSolve({ ...truth }), null);
+  assert.equal(A.windSolve({ ...truth, gs: null }), null);
+  // wind stronger than TAS across the course
+  assert.deepEqual(A.windSolve({ tcrs: 90, tas: 10, wdir: 0, wspd: 30, gs: null, thdg: null }), { error: 'Wind > TAS' });
+  // the function screen: ASA training-video practice problem
+  const r = FNS.windcorr.calc({ tcrs: 90, tas: 128, wspd: 15, wdir: 210, gs: null, thdg: null });
+  near(r.gs, 134.84, 0.005); near(r.thdg, 96, 0.5); near(r.wca, 5.825, 0.001);
+  // all six entered: nothing solved, WCA still shown from TCrs/THdg
+  const all = FNS.windcorr.calc({ ...truth });
+  assert.equal(all.gs, undefined); near(all.wca, 5.825, 0.001);
+});

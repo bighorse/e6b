@@ -139,6 +139,7 @@ body {
   font-family: Arial, "Helvetica Neue", Helvetica, "Liberation Sans", sans-serif; font-weight: 700;
   --fg: #a3b8e0; --val: #aebde4; --sel: #a6bbe0; --selfg: #0a111d; --line: rgba(196,205,220,.6);
   --hd: #b4bfcf; --tag: #9fb2d6; --q: #b8441d; --qfg: #3a1205; --dim: #5d6e8d;
+  --qok: #4f8f4a; --qokfg: #0b1a0a; --hdrbg: transparent;
   color: var(--fg);
   transition: filter .2s;
 }
@@ -146,6 +147,19 @@ body {
   --fg: #a8c85c; --val: #a9b5e7; --sel: #88b24a; --selfg: #13200a; --line: #2f4f8c;
   --hd: #a8c85c; --tag: #a9b5e7; --dim: #5a6e3c;
 }
+/* Day: light LCD with a dark title bar, as in ASA's training videos */
+.screen.theme-day {
+  background: #b4d2db;
+  --fg: #12201f; --val: #12201f; --sel: #1d221f; --selfg: #e7f0ef; --line: rgba(30,60,64,.38);
+  --hd: #22383a; --tag: #dfe8e7; --dim: #557479; --q: #c0441d; --qfg: #2e0d03;
+  --qok: #4c8a47; --qokfg: #0c1d0a; --hdrbg: #2b302d;
+}
+.screen.theme-day .hdr { background: var(--hdrbg); }
+.screen.theme-day .hbat { background: none; border: 1.5px solid var(--tag); }
+.screen.theme-day .hbat::after { right: -3.5px; }
+.screen.theme-day .li.out .val { color: #0a1514; }
+.screen.theme-day .li.sel .q.ok, .screen.theme-day .li.sel .q.eq { background: #64a85e; }
+.screen.theme-day .toast, .screen.theme-day .mem { background: #e7f1f3; color: #12201f; }
 .screen.off { background: #050506; }
 .screen.alarm { animation: alarm .5s steps(2) infinite; }
 @keyframes alarm { 50% { background: #3a0c05; } }
@@ -197,9 +211,11 @@ body {
   background: var(--q); color: var(--qfg); font-size: 10.5px; line-height: 13px; text-align: center; font-weight: 900;
 }
 .q.no { background: none; }
+.q.ok, .q.eq { background: var(--qok); color: var(--qokfg); font-size: 9.5px; }
+.q.eq { font-size: 11px; line-height: 12px; }
 .lab { flex: none; max-width: 150px; overflow: hidden; color: inherit; }
 .val {
-  flex: 1; text-align: right; font-size: 15.5px; color: var(--val); overflow: hidden;
+  flex: 1; text-align: right; font-size: 17.5px; color: var(--val); overflow: hidden;
   font-variant-numeric: tabular-nums; letter-spacing: 0;
 }
 .unit { flex: none; width: 44px; padding-left: 5px; font-size: 10.5px; color: var(--val); text-transform: uppercase; overflow: hidden; }

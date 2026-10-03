@@ -11,7 +11,7 @@
 
   // ------------------------------------------------------------------ state
   var SETTINGS_DEF = [
-    { id: 'theme', label: 'Theme', opts: ['Day', 'Night'], def: 0 },
+    { id: 'theme', label: 'Theme', opts: ['Dark', 'Night', 'Day'], def: 0 },
     { id: 'backlight', label: 'Backlighting', opts: ['Daylight', 'Normal', 'Dim'], def: 0 },
     { id: 'timeset', label: 'Time Set', kind: 'time' },
     { id: 'units', label: 'Default Units', opts: ['U. S.', 'Metric'], def: 0 },
@@ -80,7 +80,7 @@
   }
   function fmtDir(d) {
     var r = Math.round(A.norm360(d));
-    return pad(r === 0 ? 360 : r, 3) + '°';
+    return String(r === 0 ? 360 : r);
   }
   function fmtDM(d, pos, neg) {
     var hemi = d < 0 ? neg : pos, a = Math.abs(d);
@@ -110,7 +110,7 @@
   function unitLabel(fn, f) {
     var list = unitList(f);
     if (list) { var u = list[unitIdx(fn, f)].name; return u === 'h:m:s' ? '' : u; }
-    return { pct: '%', ratio: ': 1' }[f.type] || '';
+    return { pct: '%', ratio: ': 1', dir: '°', rwy: '°' }[f.type] || '';
   }
 
   function data(fn) { return S.data[fn.id] || (S.data[fn.id] = {}); }
@@ -692,7 +692,7 @@
     var fn = FNS[scr.id], res = compute(fn), rows = buildRows(fn);
     if (scr.sel >= rows.length) scr.sel = rows.length - 1;
     keepVisible(scr, rows.length, VIEW_FN);
-    var tag = FN_TAG[fn.id] || 'FLIGHT';
+    var tag = FN_TAG[fn.id] || 'E6-B';
     var h = header(tag) + '<div class="sub">' + esc(fn.title) + (S.settings.favFn === fn.id ? ' <span class="star">★</span>' : '') + '</div>';
     h += '<div class="view" style="height:' + VIEW_FN + 'px"><div class="lst" style="transform:translateY(' + (-scr.scroll) + 'px)">';
     rows.forEach(function (r, i) {
@@ -704,7 +704,10 @@
       var label = (res._labels && res._labels[f.id]) || f.label;
       var cls = 'li fr' + (r.sub ? ' sub' : '') + (sel ? ' sel' : '') + (f.input && !rv.solved ? ' in' : ' out') +
         (rv.inherited ? ' inh' : '') + (fn.conv && !f.input ? ' cv' : '');
-      var q = shown == null && !(f.input && f.opt) ? '<span class="q">?</span>' : '<span class="q no"></span>';
+      // status icon as on the CX-3: ✓ value entered, = value computed, ? value missing
+      var computed = !f.input || rv.solved || rv.inherited;
+      var q = shown == null ? (f.input && f.opt ? '<span class="q no"></span>' : '<span class="q">?</span>')
+        : computed ? '<span class="q eq">=</span>' : '<span class="q ok">✓</span>';
       var val;
       if (sel && V.edit) val = esc(V.edit.buf) + cursor();
       else if (shown == null) val = f.input && f.opt ? '<span class="opt">opt</span>' : '--';
@@ -783,7 +786,7 @@
 
   function applyLook() {
     if (!screenEl) return;
-    var cls = 'screen theme-' + (S.settings.theme === 1 ? 'night' : 'day');
+    var cls = 'screen theme-' + (['dark', 'night', 'day'][S.settings.theme] || 'dark');
     if (!V.power) cls += ' off';
     if (S.tm.alarm) cls += ' alarm';
     if (screenEl.className !== cls) screenEl.className = cls;

@@ -106,6 +106,50 @@
     return { head: wspd * Math.cos(a), cross: wspd * Math.sin(a) };
   }
 
+  /* General wind triangle solver (ground vector = air vector + wind vector).
+   * k holds any of gs, tas, tcrs, thdg, wspd, wdir (null = unknown). With exactly
+   * four known it returns the two missing values, or {error}; null when the
+   * combination is not solvable uniquely (TCrs and THdg both unknown, or a wind
+   * part mixed with another unknown). */
+  function windSolve(k) {
+    var keys = ['gs', 'tas', 'tcrs', 'thdg', 'wspd', 'wdir'];
+    var miss = keys.filter(function (x) { return k[x] == null; });
+    if (miss.length !== 2) return null;
+    var m = miss.join(',');
+    function vx(spd, dir) { return spd * Math.sin(dir * D2R); }
+    function vy(spd, dir) { return spd * Math.cos(dir * D2R); }
+    function polar(x, y) { var s = Math.sqrt(x * x + y * y); return { s: s, d: s < 1e-9 ? 0 : dir360(Math.atan2(x, y) * R2D) }; }
+    // wind vector points the way the wind blows (from wdir toward wdir + 180)
+    var wx = k.wspd != null ? vx(k.wspd, k.wdir + 180) : 0, wy = k.wspd != null ? vy(k.wspd, k.wdir + 180) : 0;
+    if (m === 'wspd,wdir') {
+      var u = unknownWind(k.gs, k.tas, k.tcrs, k.thdg);
+      return { wspd: u.wspd, wdir: u.wdir };
+    }
+    if (m === 'gs,thdg') {
+      var w = windTriangle(k.tcrs, k.tas, k.wdir, k.wspd);
+      return w ? { thdg: w.thdg, gs: w.gs } : { error: 'Wind > TAS' };
+    }
+    if (m === 'gs,tcrs') {
+      var g = polar(vx(k.tas, k.thdg) + wx, vy(k.tas, k.thdg) + wy);
+      return { gs: g.s, tcrs: g.d };
+    }
+    if (m === 'tas,thdg') {
+      var a = polar(vx(k.gs, k.tcrs) - wx, vy(k.gs, k.tcrs) - wy);
+      return { tas: a.s, thdg: a.d };
+    }
+    if (m === 'gs,tas') {
+      // gs·g − tas·a = w, with g, a unit vectors along TCrs and THdg (Cramer's rule)
+      var gx = Math.sin(k.tcrs * D2R), gy = Math.cos(k.tcrs * D2R);
+      var ax = Math.sin(k.thdg * D2R), ay = Math.cos(k.thdg * D2R);
+      var det = -gx * ay + ax * gy;
+      if (Math.abs(det) < 1e-9) return { error: 'No Solution' };
+      var gs = (-wx * ay + ax * wy) / det, tas = (gx * wy - gy * wx) / det;
+      if (gs <= 0 || tas <= 0) return { error: 'No Solution' };
+      return { gs: gs, tas: tas };
+    }
+    return null;
+  }
+
   // ---------- Navigation ----------
   function rhumbLine(lat1, lon1, lat2, lon2) {
     var p1 = lat1 * D2R, p2 = lat2 * D2R;
@@ -156,7 +200,7 @@
     deltaAt: deltaAt, isaTempC: isaTempC, stdAtmosphere: stdAtmosphere, speedOfSound: speedOfSound,
     pressureAltitude: pressureAltitude, densityAltitude: densityAltitude, cloudBase: cloudBase,
     machFromCas: machFromCas, casFromMach: casFromMach, plannedTas: plannedTas, actualTas: actualTas,
-    windTriangle: windTriangle, unknownWind: unknownWind, windComponents: windComponents,
+    windTriangle: windTriangle, unknownWind: unknownWind, windSolve: windSolve, windComponents: windComponents,
     rhumbLine: rhumbLine, reciprocal: reciprocal,
     holdingEntry: holdingEntry, holding: holding, gradToAngle: gradToAngle
   };

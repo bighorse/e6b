@@ -25,8 +25,9 @@
     // base: feet
     alt: [lin('ft', 1, 0), lin('m', 3.280839895, 0)],
     // base: knots
-    speed: [lin('kts', 1, 0), lin('mph', 0.868976242, 0), lin('km/h', 0.539956803, 0),
-            lin('m/s', 1.943844492, 1)],
+    // the CX-3 shows speeds with two decimals (e.g. 134.84 KTS)
+    speed: [lin('kts', 1, 2), lin('mph', 0.868976242, 2), lin('km/h', 0.539956803, 2),
+            lin('m/s', 1.943844492, 2)],
     // base: feet per minute
     vs: [lin('ft/min', 1, 0), lin('m/s', 196.8503937, 2), lin('m/min', 3.280839895, 0)],
     // base: degrees Celsius

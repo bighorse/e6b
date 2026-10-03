@@ -42,7 +42,7 @@ The keypad follows the real unit: 5 columns × 7 rows.
 | **CONV UNIT** | Convert the selected value to the next unit (opens Unit Conversions elsewhere) |
 | **★** | Open your favorite function (choose it in SET › Favorite) |
 | **M** | Memory M0–M9: ENTER recalls, M stores, C clears |
-| **SET** | Theme, Backlighting, Time Set (Zulu), Default Units, Unit Changes, Favorite, Aircraft Profile, User Data, Key Click, Auto Off, Version |
+| **SET** | Theme (Dark / Night / Day), Backlighting, Time Set (Zulu), Default Units, Unit Changes, Favorite, Aircraft Profile, User Data, Key Click, Auto Off, Version |
 | **:** | Time / angle separator (`1:30` = 1 h 30 min, `40:30` = 40°30′) |
 
 Input lines accept arithmetic (`120+15`, then ENTER). On a computer keyboard: digits,
@@ -56,8 +56,9 @@ F, P, T, C, W, S, M, A (★), U (SET UNIT), V (CONV UNIT), N (±), R (√).
   - Airspeed: Planned TAS (OAT), Actual TAS (TAT), Mach Number
   - Fuel: Fuel Burn, Fuel Rate, Endurance, Fuel Weight
   - Ground Speed, Time, Distance, Estimated Time of Arrival
-  - Compass Heading (wind triangle, variation and deviation), Wind Correction (unknown
-    wind), Wind Component, To-From, Rhumb Line
+  - Compass Heading (wind triangle, variation and deviation), Wind Correction (enter any
+    four of GS, TAS, TCrs, THdg, WSpd, WDir and the other two are solved, as on the CX-3),
+    Wind Component, To-From, Rhumb Line
   - Climb & Descent: Climb/Descent, Top of Descent, Required Rate
   - Glide, Holding Pattern (entry type and wind-corrected headings)
   - Unit Conversions (12 categories): distance, speed, duration, temperature, pressure,

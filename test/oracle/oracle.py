@@ -55,20 +55,20 @@ atm = Atmosphere(R0 * H / (R0 - H))
 check('§4', 'ISA temp 10000 ft', -4.8, atm.temperature_in_celsius[0], 1)
 check('§4', 'ISA press 10000 ft (inHg)', 20.58, atm.pressure[0] / INHG, 2)
 check('§4', 'ISA density ratio 10000 ft', 0.7385, atm.density[0] / Atmosphere(0).density[0], 4)
-check('§4', 'ISA speed of sound 10000 ft (kt)', 638, atm.speed_of_sound[0] / KT, 0)
+check('§4', 'ISA speed of sound 10000 ft (kt)', 638.33, atm.speed_of_sound[0] / KT, 2)
 
 # ---------------------------------------------------------------- airspeed
 tas = AS.cas2tas(150, 8000, temp=0, speed_units='kt', alt_units='ft', temp_units='C')
-check('§4', 'Planned TAS', 169, tas, 0)
+check('§4', 'Planned TAS', 169.08, tas, 2)
 check('§4', 'Planned TAS Mach', 0.263, AS.tas2mach(tas, 0, speed_units='kt', temp_units='C'), 3)
 check('§4', 'Planned TAS DAlt', 8101, SA.density_alt(8000, 0, alt_units='ft', temp_units='C'), 0)
 m = AS.cas_alt2mach(250, 35000, speed_units='kt', alt_units='ft')
 oat_k = (-30 + 273.15) / (1 + 0.2 * m * m)          # TAT -> static temperature, recovery factor 1
 check('§4', 'Actual TAS Mach', 0.741, m, 3)
 check('§4', 'Actual TAS OAT', -54.1, oat_k - 273.15, 1)
-check('§4', 'Actual TAS', 428, AS.mach2tas(m, oat_k - 273.15, speed_units='kt', temp_units='C'), 0)
+check('§4', 'Actual TAS', 427.50, AS.mach2tas(m, oat_k - 273.15, speed_units='kt', temp_units='C'), 2)
 check('§4', 'Mach (OAT -40, TAS 450)', 0.756, AS.tas2mach(450, -40, speed_units='kt', temp_units='C'), 3)
-check('§4', 'Speed of sound at -40 °C (kt)', 595, AS.mach2tas(1, -40, speed_units='kt', temp_units='C'), 0)
+check('§4', 'Speed of sound at -40 °C (kt)', 595.01, AS.mach2tas(1, -40, speed_units='kt', temp_units='C'), 2)
 
 # ---------------------------------------------------------------- fuel / time / distance (arithmetic)
 check('§4', 'Fuel burn 9.5 gal/h × 2:15', 21.4, 9.5 * 2.25, 1)
@@ -77,7 +77,7 @@ check('§4', 'Endurance 48/8.5 (s)', 5 * 3600 + 38 * 60 + 49, hms(48 / 8.5), 0)
 check('§4', 'AvGas 40 gal (6.0 lb/gal)', 240.0, 40 * 6.0, 1)
 check('§4', 'Jet A 40 gal (6.7 lb/gal)', 268.0, 40 * 6.7, 1)
 check('T09', 'Oil 40 gal (7.5 lb/gal)', 300.0, 40 * 7.5, 1)
-check('§4', 'GS 150 nm / 1:15', 120, 150 / 1.25, 0)
+check('§4', 'GS 150 nm / 1:15', 120.00, 150 / 1.25, 2)
 check('§4', 'Time 210/140 (s)', 5400, hms(210 / 140), 0)
 check('§4', 'Distance 125 kt × 0:48', 100.0, 125 * 0.8, 1)
 check('T08', 'ETA 23:59 + 100/120 h (min of day)', 49, ((23 * 60 + 59) + 100 / 120 * 60) % 1440, 0)
@@ -108,17 +108,22 @@ check('§4/T06', 'THdg', 83, h, 0)
 check('§4/T06', 'MHdg (Var 10 W)', 93, h + 10, 0)
 check('§4', 'CHdg (Dev -2)', 91, h + 10 - 2, 0)
 check('T06', 'MHdg (Var 10 E)', 73, h - 10, 0)
-check('§4/T06', 'GS', 105, gs, 0)
+check('§4/T06', 'GS', 105.02, gs, 2)
 # unknown wind from rounded inputs GS 105 / TAS 120 / TC 090 / TH 083
 wv = vec(105, 90) - vec(120, 83)            # wind vector, blowing toward
-check('§4', 'Unknown wind speed', 20, abs(wv), 0)
+check('§4', 'Unknown wind speed', 20.32, abs(wv), 2)
 check('§4', 'Unknown wind from', 44, (math.degrees(math.atan2(wv.real, wv.imag)) + 180) % 360, 0)
 # wind components
-# 15 kt at 30° = exactly 7.5 kt crosswind: the display must round half up to 8
-for rwy, wd, ws, head, cross in [(270, 300, 20, 17, 10), (270, 120, 15, -13, -8)]:
+for rwy, wd, ws, head, cross in [(270, 300, 20, 17.32, 10.00), (270, 120, 15, -12.99, -7.50)]:
     a = math.radians(wd - rwy)
-    check('§4', f'Head/tail {rwy} {wd}/{ws}', head, ws * math.cos(a), 0)
-    check('§4', f'Cross {rwy} {wd}/{ws}', cross, ws * math.sin(a), 0)
+    check('§4', f'Head/tail {rwy} {wd}/{ws}', head, ws * math.cos(a), 2)
+    check('§4', f'Cross {rwy} {wd}/{ws}', cross, ws * math.sin(a), 2)
+
+# practice problem from ASA's CX-3 training video (screen shows GS 134.84 KTS, THdg 96 °)
+hp, gp = solve_heading(90, 128, 210, 15)
+check('§4/T07', 'Practice GS (video: 134.84)', 134.84, gp, 2)
+check('§4/T07', 'Practice THdg (video: 96)', 96, hp, 0)
+check('§4/T07', 'Practice WCA (R)', 5.8, hp - 90, 1)
 
 # ---------------------------------------------------------------- rhumb line (numerical quadrature)
 def rhumb(lat1, lon1, lat2, lon2):
@@ -165,16 +170,16 @@ def leg(tc, dist, tas, wdir, wspd, var, rate):
     return hd, hd + var, g, ete, rate * ete
 l1 = leg(90, 120, 110, 360, 15, 5, 8.5)
 l2 = leg(180, 45, 110, 360, 15, 5, 8.5)
-for i, (name, shown, dp) in enumerate([('THdg', 82, 0), ('MHdg', 87, 0), ('GS', 109, 0)]):
+for i, (name, shown, dp) in enumerate([('THdg', 82, 0), ('MHdg', 87, 0), ('GS', 108.97, 2)]):
     check('§4/T13', 'LEG1 ' + name, shown, l1[i], dp)
 check('§4/T13', 'LEG1 ETE (s)', 3964, hms(l1[3]), 0)
 check('§4/T13', 'LEG1 fuel', 9.4, l1[4], 1)
-check('§4/T13', 'LEG2 GS', 125, l2[2], 0)
+check('§4/T13', 'LEG2 GS', 125.00, l2[2], 2)
 check('§4/T13', 'LEG2 ETE (s)', 1296, hms(l2[3]), 0)
 check('§4/T13', 'LEG2 fuel', 3.1, l2[4], 1)
 check('§4/T13', 'Total ETE (s)', 5260, hms(l1[3] + l2[3]), 0)
 check('§4/T13', 'Total fuel', 12.4, l1[4] + l2[4], 1)
-check('T13', 'LEG2 GS with TAS 130', 145, leg(180, 45, 130, 360, 15, 5, 8.5)[2], 0)
+check('T13', 'LEG2 GS with TAS 130', 145.00, leg(180, 45, 130, 360, 15, 5, 8.5)[2], 2)
 
 # ---------------------------------------------------------------- W/B (arithmetic)
 check('§4/T12', 'Mom item 1', 127500.0, 1500 * 85, 1)
