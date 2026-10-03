@@ -99,6 +99,9 @@ test('function calcs', () => {
   const wb = FNS.wb.calc({ rf: 1 }, { n: 2, get: (id, i) => (st[id] || [])[i] ?? null });
   assert.equal(wb.twt, 1670); assert.equal(wb.tmom, 142800); near(wb.cg, 85.509, 0.001);
   assert.equal(wb['mom@1'], 127500); assert.equal(wb['mom@2'], 15300);
+  const st2 = { wt: [null, 1500, 170], arm: [null, 85, null] };
+  const wb2 = FNS.wb.calc({}, { n: 2, get: (id, i) => (st2[id] || [])[i] ?? null });
+  assert.equal(wb2.twt, 1670); assert.equal(wb2.cg, undefined); assert.equal(wb2.tmom, undefined);
   // Flight plan per-leg outputs and totals
   const legs = { tcrs: [null, 90, 180], dist: [null, 120, 60], tas: [null, 120, 120], frate: [null, 10, 10] };
   const pl = FNS.plan.calc({}, { n: 2, get: (id, i) => (legs[id] || [])[i] ?? null });

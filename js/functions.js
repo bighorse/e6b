@@ -283,16 +283,18 @@
      O('twt', 'Wt', 'weight', { total: true }), O('tmom', 'Mom', 'mom', { total: true }),
      O('cg', 'CG', 'arm', { total: true })],
     function (v, ctx) {
-      var rf = v.rf || 1, tw = 0, tm = 0, any = false, r = {};
+      var rf = v.rf || 1, tw = 0, tm = 0, any = false, missingArm = false, r = {};
       for (var i = 1; i <= ctx.n; i++) {
         var wt = ctx.get('wt', i), arm = ctx.get('arm', i);
         if (wt == null) continue;
         any = true; tw += wt;
         if (arm != null) { tm += wt * arm; r['mom@' + i] = wt * arm / rf; }
+        else missingArm = true;
       }
       if (any) {
-        r.twt = tw; r.tmom = tm / rf;
-        if (tw !== 0) r.cg = tm / tw;
+        r.twt = tw;
+        // moment and CG are only meaningful once every weighed item has an arm
+        if (!missingArm) { r.tmom = tm / rf; if (tw !== 0) r.cg = tm / tw; }
       }
       return r;
     }, { items: 'ITEM', max: 20 });
