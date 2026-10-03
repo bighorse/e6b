@@ -65,7 +65,10 @@ F, P, T, C, W, S, M, A (★), U (SET UNIT), V (CONV UNIT), N (±), R (√).
 - **PLAN**: flight plan, listed by leg (LEG 1, LEG 2 … Add, TOTALS; up to 20 legs). TAS,
   wind, variation and fuel rate carry over from earlier legs or the Aircraft Profile.
 - **TIMER**: count up / count down (type HHMMSS) with Start, Restart, Reset, and an alarm
-- **CALC**: algebraic calculator with √, history tape and h:m:s time arithmetic
+- **CALC**: algebraic calculator (× ÷ before + −) with √, ±, a history tape (▲▼ to pick a line,
+  ENTER to reuse it) and h:m:s time arithmetic. After "=", an operator continues from the result
+  at full precision (shown as `Ans`). Time ± time and time × or ÷ a number give a time;
+  time ÷ time gives a plain number. C clears the line, a second C clears the history.
 - **W/B (E6-B)**: weight & balance listed by item (RF, ITEM 1 … Add, TOTALS), weight shift
   (leave one value blank to solve for it), weight add/remove, % MAC
 
@@ -75,8 +78,14 @@ Data, settings, favorites and memories are saved in the browser's local storage.
 ## Tests
 
 ```sh
-node --test test/*.test.js
+node --test test/*.test.js                      # unit tests, incl. 5,000 random CALC expressions vs exact arithmetic
+pip install -r test/oracle/requirements.txt && python test/oracle/oracle.py   # manual values vs independent references
+npm i playwright && npx playwright install chromium
+node test/e2e/docvals.js                        # manual examples typed on the simulator
+node test/e2e/calc.e2e.js                       # CALC screen, on-screen keys and keyboard
 ```
+
+All of these run on every push (GitHub Actions: Verify accuracy).
 
 The calculations use the ICAO standard atmosphere, compressible-flow airspeed
 equations, and AIM 5-3-8 holding entry sectors.

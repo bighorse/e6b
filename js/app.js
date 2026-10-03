@@ -26,7 +26,7 @@
 
   function freshState() {
     var s = { settings: { clockOffset: 0, favFn: null }, data: {}, units: {}, mem: [],
-              calc: { tape: [], expr: '', fresh: true },
+              calc: window.CalcCore.freshState(),
               tm: { mode: 0, running: false, start: 0, acc: 0, set: 0, alarm: false } };
     SETTINGS_DEF.forEach(function (d) { if (d.opts) s.settings[d.id] = d.def; });
     for (var i = 0; i < 10; i++) s.mem.push(null);
@@ -39,6 +39,8 @@
     Object.keys(obj || {}).forEach(function (k) { if (k in s) s[k] = obj[k]; });
     SETTINGS_DEF.forEach(function (d) { if (d.opts && s.settings[d.id] == null) s.settings[d.id] = d.def; });
     if (!s.tm || typeof s.tm !== 'object') s.tm = freshState().tm;
+    if (!s.calc || !Array.isArray(s.calc.tape)) s.calc = window.CalcCore.freshState();
+    if (!('ans' in s.calc)) { var lt = s.calc.tape[s.calc.tape.length - 1]; s.calc.ans = lt ? { value: lt.value, time: lt.time } : null; }
     s.tm.running = false; s.tm.alarm = false;
     return s;
   }
@@ -71,10 +73,6 @@
     var s = a.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
     return (x < 0 && !/^[0.,]*$/.test(s) ? '-' : '') + s;
   }
-  function fmtHMS(h) {
-    var neg = h < 0, t = Math.round(Math.abs(h) * 3600);
-    return (neg ? '-' : '') + Math.floor(t / 3600) + ':' + pad(Math.floor(t / 60) % 60) + ':' + pad(t % 60);
-  }
   function fmtClock(h, trunc) {
     var m = (((h % 24) + 24) % 24) * 60;
     var t = trunc ? Math.floor(m + 1e-9) : Math.round(m);
@@ -89,18 +87,6 @@
     var deg = Math.floor(a), min = Math.round((a - deg) * 6000) / 100;
     if (min >= 60) { deg += 1; min -= 60; }
     return hemi + ' ' + deg + '°' + (min < 10 ? '0' : '') + min.toFixed(2) + "'";
-  }
-  function fmtCalc(x) {
-    if (!isFinite(x)) return 'Error';
-    if (Math.abs(x) >= 1e12 || (Math.abs(x) < 1e-6 && x !== 0)) return x.toExponential(6);
-    var s = String(Math.round(x * 1e8) / 1e8), p = s.split('.');
-    var neg = p[0][0] === '-';
-    p[0] = (neg ? '-' : '') + Number(p[0].replace('-', '')).toLocaleString('en-US');
-    return p.join('.');
-  }
-  function numStr(x) {
-    var s = String(Math.round(x * 1e8) / 1e8);
-    return s.indexOf('e') >= 0 ? x.toFixed(6) : s;
   }
 
   // ------------------------------------------------------------- clock
@@ -215,53 +201,10 @@
   }
 
   // ------------------------------------------------- expression evaluation
-  // + − × ÷ with precedence, √ prefix, and colon values (h:m:s / d:m:s)
-  function evaluate(str) {
-    var toks = [], i = 0, s = str.replace(/\s+/g, ''), timeUsed = false;
-    if (!s) return null;
-    while (i < s.length) {
-      var c = s[i], expectNum = !toks.length || typeof toks[toks.length - 1] === 'string';
-      if (expectNum && (/[0-9.:√]/.test(c) || c === '-')) {
-        var j = i, neg = false, root = false;
-        if (s[j] === '-') { neg = true; j++; }
-        if (s[j] === '√') { root = true; j++; }
-        var k = j;
-        while (k < s.length && /[0-9.:]/.test(s[k])) k++;
-        var t = s.slice(j, k), v;
-        if (t === '' || t === '.') return null;
-        if (t.indexOf(':') >= 0) {
-          var parts = t.split(':');
-          if (parts.length > 3) return null;
-          v = 0;
-          for (var m = 0; m < parts.length; m++) {
-            var p = parts[m] === '' ? 0 : Number(parts[m]);
-            if (isNaN(p)) return null;
-            v += p / Math.pow(60, m);
-          }
-          timeUsed = true;
-        } else { v = Number(t); if (isNaN(v)) return null; }
-        if (root) { if (v < 0) return { error: 'Error' }; v = Math.sqrt(v); }
-        toks.push(neg ? -v : v);
-        i = k;
-      } else if (!expectNum && '+-×÷'.indexOf(c) >= 0) { toks.push(c); i++; }
-      else return null;
-    }
-    if (typeof toks[toks.length - 1] === 'string') toks.pop();
-    if (!toks.length) return null;
-    var out = [toks[0]];
-    for (var n = 1; n < toks.length; n += 2) {
-      var op = toks[n], b = toks[n + 1];
-      if (op === '×') out[out.length - 1] *= b;
-      else if (op === '÷') { if (b === 0) return { error: 'Div by Zero' }; out[out.length - 1] /= b; }
-      else out.push(op, b);
-    }
-    var r = out[0];
-    for (var q = 1; q < out.length; q += 2) r = out[q] === '+' ? r + out[q + 1] : r - out[q + 1];
-    return { value: r, time: timeUsed };
-  }
+  var CC = window.CalcCore, evaluate = CC.evaluate, fmtCalc = CC.fmtCalc, fmtHMS = CC.fmtHMS, numStr = CC.numStr;
 
   function parseField(fn, f, buf) {
-    var e = evaluate(buf);
+    var e = evaluate(buf.replace(/[+\-×÷√]+$/, ''));
     if (!e || e.error) return undefined;
     var x = e.value;
     switch (f.type) {
@@ -370,11 +313,7 @@
   }
 
   function currentValue(scr) {
-    if (scr.type === 'calc') {
-      var c = S.calc;
-      if (c.expr && !c.fresh) { var e = evaluate(c.expr); return e && !e.error ? e.value : null; }
-      return c.tape.length ? c.tape[c.tape.length - 1].value : null;
-    }
+    if (scr.type === 'calc') return CC.currentValue(S.calc);
     if (scr.type === 'fn') {
       var fn = FNS[scr.id], r = buildRows(fn)[scr.sel];
       if (!r || r.t !== 'f') return null;
@@ -391,9 +330,7 @@
   function insertNumber(scr, x) {
     var s = numStr(x);
     if (scr.type === 'calc') {
-      var c = S.calc;
-      if (c.fresh) { c.expr = ''; c.fresh = false; }
-      c.expr += s;
+      CC.appendOperand(S.calc, s);
     } else if (scr.type === 'fn') {
       var fn = FNS[scr.id], r = buildRows(fn)[scr.sel];
       if (!r || r.t !== 'f' || !r.f.input || r.f.type === 'enum') return toast('Select an Input');
@@ -610,68 +547,9 @@
 
   // ------------------------------------------------------------ calculator
   HANDLERS.calc = function (scr, k) {
-    var c = S.calc, n = c.tape.length;
-    if (k === 'UP' || k === 'DOWN') {
-      if (!n) return;
-      if (scr.sel < 0) scr.sel = n;
-      scr.sel += k === 'UP' ? -1 : 1;
-      if (scr.sel < 0) scr.sel = 0;
-      if (scr.sel >= n) scr.sel = -1;
-      return;
-    }
-    if (scr.sel >= 0 && k === 'ENTER') {
-      if (c.fresh) { c.expr = ''; c.fresh = false; }
-      c.expr += numStr(c.tape[scr.sel].value);
-      scr.sel = -1;
-      return;
-    }
-    scr.sel = -1;
-    if (ENTRY.indexOf(k) >= 0) {
-      if (c.fresh) { c.expr = ''; c.fresh = false; }
-      if (c.expr.length < 32) c.expr += k;
-      return;
-    }
-    if ('+-×÷'.indexOf(k) >= 0) {
-      if (c.fresh) {
-        c.fresh = false;
-        var last = c.tape[n - 1];
-        c.expr = last ? (last.time ? fmtHMS(last.value) : numStr(last.value)) : (k === '-' ? '' : '0');
-      }
-      if (/[+\-×÷]$/.test(c.expr)) c.expr = c.expr.slice(0, -1);
-      c.expr += k;
-      return;
-    }
-    if (k === '+/-') {
-      if (c.fresh) { c.expr = n ? numStr(-c.tape[n - 1].value) : '-'; c.fresh = false; return; }
-      var i = c.expr.length;
-      while (i > 0 && /[0-9.:√]/.test(c.expr[i - 1])) i--;
-      var unary = i > 0 && c.expr[i - 1] === '-' && (i === 1 || /[+\-×÷]/.test(c.expr[i - 2]));
-      c.expr = unary ? c.expr.slice(0, i - 1) + c.expr.slice(i) : c.expr.slice(0, i) + '-' + c.expr.slice(i);
-      return;
-    }
-    if (k === 'SQRT') {
-      if (c.fresh) { c.fresh = false; c.expr = n ? '√' + numStr(c.tape[n - 1].value) : '√'; return; }
-      var j = c.expr.length;
-      while (j > 0 && /[0-9.:]/.test(c.expr[j - 1])) j--;
-      if (c.expr[j - 1] === '√') c.expr = c.expr.slice(0, j - 1) + c.expr.slice(j);
-      else c.expr = c.expr.slice(0, j) + '√' + c.expr.slice(j);
-      return;
-    }
-    if (k === 'BKSP') { if (!c.fresh) c.expr = c.expr.slice(0, -1); return; }
-    if (k === 'C') {
-      if (c.expr && !c.fresh) { c.expr = ''; return; }
-      c.tape = []; c.expr = ''; c.fresh = true; return;
-    }
     if (k === 'CONVUNIT') return push(menuScr('CONV'));
-    if (k === '=' || k === 'ENTER') {
-      if (!c.expr || c.fresh) return;
-      var e = evaluate(c.expr);
-      if (!e) return toast('Syntax Error');
-      if (e.error) return toast(e.error);
-      c.tape.push({ expr: c.expr, value: e.value, time: e.time });
-      if (c.tape.length > 50) c.tape.shift();
-      c.expr = ''; c.fresh = true;
-    }
+    var r = CC.key(S.calc, scr, k);
+    if (r && r.toast) toast(r.toast);
   };
 
   // ------------------------------------------------------------------ timer
@@ -850,7 +728,7 @@
       h += '<div class="tl' + (off + i === scr.sel ? ' sel' : '') + '"><span class="tx">' + esc(t.expr) + ' =</span><span class="tr">' +
         esc(t.time ? fmtHMS(t.value) : fmtCalc(t.value)) + '</span></div>';
     });
-    h += '</div><div class="cin">' + (c.fresh ? '<span class="dim">0</span>' : esc(c.expr)) + cursor() + '</div>';
+    h += '</div><div class="cin"><span class="cx">' + (c.fresh || !c.expr ? '<span class="dim">0</span>' : esc(c.expr)) + cursor() + '</span></div>';
     return h;
   }
 

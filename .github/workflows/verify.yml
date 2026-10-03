@@ -36,3 +36,4 @@ jobs:
           node-version: 22
       - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
       - run: node test/e2e/docvals.js
+      - run: node test/e2e/calc.e2e.js

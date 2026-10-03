@@ -246,6 +246,9 @@ body {
   font-size: 30px; color: var(--fg); font-variant-numeric: tabular-nums; overflow: hidden; white-space: nowrap;
 }
 .cin .cur { height: 26px; width: 9px; }
+/* long lines keep their end in view; fade the cut-off start */
+.cin { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 18px); mask-image: linear-gradient(to right, transparent 0, #000 18px); }
+.cin .cx { white-space: nowrap; }
 .dim { color: var(--dim); }
 
 /* overlays */
