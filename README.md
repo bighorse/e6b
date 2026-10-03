@@ -18,22 +18,36 @@ python3 -m http.server 8000   # then open http://localhost:8000
 
 ## Keys
 
+The keypad follows the real unit: 5 columns × 7 rows.
+
+```
+ FLT    PLAN    ▲     TIMER   CALC
+ BACK    ★      ■     W/B     SET
+ M     SET UNIT ▼   CONV UNIT  ÷
+ C       7      8      9       ×
+ BKSP    4      5      6       −
+ :       1      2      3       +
+ ±       ·      0      √       =
+```
+
 | Key | Action |
 | --- | --- |
-| **FLT / PLAN / TIMER / CALC / W/B** | Jump to that main menu |
+| **FLT / W/B** | Flight and E6-B (weight & balance) menus |
+| **PLAN / TIMER / CALC** | Flight plan, timer, calculator |
 | **▲ ▼** | Move the selection |
-| **◀ ▶** | Change units for the selected value (or toggle option / item / E-W, N-S) |
-| **ON/OFF ENTER** | Turn on, open the item, accept the entry. Hold 3 s to turn off |
+| **■ (orange)** | ON / ENTER. Hold 3 s to turn off |
 | **BACK** | Previous screen, or cancel the current entry |
-| **CLR** | Cancel the entry, or clear the selected input |
-| **SET** | Preferences: backlight, theme, clock, time format, units, decimals, key click, auto-off |
-| **M** | In a function: save it to (or remove it from) Favorites. Elsewhere: open Favorites |
-| **STO / RCL + 0–9** | Store a value in, or recall it from, memories M0–M9 |
+| **C / BKSP** | Clear the entry or field / delete the last character |
+| **SET UNIT** | Change the unit of the selected value (the number stays) |
+| **CONV UNIT** | Convert the selected value to the next unit (opens Unit Conversions elsewhere) |
+| **★** | Open your favorite function (choose it in SET › Favorite) |
+| **M** | Memory M0–M9: ENTER recalls, M stores, C clears |
+| **SET** | Theme, Backlighting, Time Set (Zulu), Default Units, Unit Changes, Favorite, Aircraft Profile, User Data, Key Click, Auto Off, Version |
 | **:** | Time / angle separator (`1:30` = 1 h 30 min, `40:30` = 40°30′) |
 
 Input lines accept arithmetic (`120+15`, then ENTER). On a computer keyboard: digits,
-`+ - * /`, Enter, Esc = BACK, Del = CLR, Backspace = ◀, arrows, and the letters
-F, P, T, C, W, S, M, K (STO), R (RCL), N (+/−).
+`+ - * /`, Enter, Esc = BACK, Del = C, Backspace = BKSP, ↑ ↓, and the letters
+F, P, T, C, W, S, M, A (★), U (SET UNIT), V (CONV UNIT), N (±), R (√).
 
 ## Functions
 
@@ -48,13 +62,14 @@ F, P, T, C, W, S, M, K (STO), R (RCL), N (+/−).
   - Glide, Holding Pattern (entry type and wind-corrected headings)
   - Unit Conversions (12 categories): distance, speed, duration, temperature, pressure,
     volume, rate, weight, rate of climb, angle of climb, torque, angle
-- **PLAN**: multi-leg flight plan (20 legs). TAS, wind, variation and fuel rate carry over
-  from earlier legs. Shows per-leg and total distance, time and fuel.
-- **TIMER**: stopwatch with laps, countdown timer with alarm, local/UTC clock
-- **CALC**: algebraic calculator with history tape and h:m:s time arithmetic
-- **W/B**: weight & balance (20 items, reduction factor), weight shift (leave one value
-  blank to solve for it), weight add/remove, % MAC
+- **PLAN**: flight plan, listed by leg (LEG 1, LEG 2 … Add, TOTALS; up to 20 legs). TAS,
+  wind, variation and fuel rate carry over from earlier legs or the Aircraft Profile.
+- **TIMER**: count up / count down (type HHMMSS) with Start, Restart, Reset, and an alarm
+- **CALC**: algebraic calculator with √, history tape and h:m:s time arithmetic
+- **W/B (E6-B)**: weight & balance listed by item (RF, ITEM 1 … Add, TOTALS), weight shift
+  (leave one value blank to solve for it), weight add/remove, % MAC
 
+The case, keypad, screen colors and layout follow photos of the real unit.
 Data, settings, favorites and memories are saved in the browser's local storage.
 
 ## Tests

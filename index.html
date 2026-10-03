@@ -3,87 +3,77 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="theme-color" content="#16181c">
+<meta name="theme-color" content="#e9eaec">
 <title>CX-3 Flight Computer</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="stage">
   <div id="device" class="device">
-    <div class="brand">
-      <span class="model">CX-3</span>
-      <span class="sub">FLIGHT COMPUTER</span>
-    </div>
+    <div class="shell">
+      <i class="grip l"></i><i class="grip r"></i>
+      <div class="face">
+        <div class="glass">
+          <img class="logo" src="img/asa-wings.svg" alt="asa" draggable="false">
+          <div class="disp"><div id="screen" class="screen off"></div></div>
+          <div class="model">CX-3&nbsp; FLIGHT COMPUTER</div>
+        </div>
+        <div class="keypad">
+          <button class="k t" data-k="FLT">FLT</button>
+          <button class="k t" data-k="PLAN">PLAN</button>
+          <button class="k" data-k="UP" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M4 16 L12 8 L20 16"/></svg></button>
+          <button class="k t" data-k="TIMER">TIMER</button>
+          <button class="k t" data-k="CALC">CALC</button>
 
-    <div class="bezel">
-      <div id="screen" class="screen off"></div>
-    </div>
+          <button class="k t" data-k="BACK">BACK</button>
+          <button class="k" data-k="FAV" aria-label="Favorite"><svg viewBox="0 0 24 24" class="star"><path d="M12 2.2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.4l7.1-.6z"/></svg></button>
+          <button class="k enter" data-k="ENTER" aria-label="On/Off Enter"><span class="sq"></span></button>
+          <button class="k t" data-k="W/B">W/B</button>
+          <button class="k t" data-k="SET">SET</button>
 
-    <div class="menukeys">
-      <button class="k menu" data-k="FLT">FLT</button>
-      <button class="k menu" data-k="PLAN">PLAN</button>
-      <button class="k menu" data-k="TIMER">TIMER</button>
-      <button class="k menu" data-k="CALC">CALC</button>
-      <button class="k menu" data-k="W/B">W/B</button>
-    </div>
+          <button class="k t m" data-k="M">M</button>
+          <button class="k t two" data-k="SETUNIT">SET<br>UNIT</button>
+          <button class="k" data-k="DOWN" aria-label="Down"><svg viewBox="0 0 24 24"><path d="M4 8 L12 16 L20 8"/></svg></button>
+          <button class="k t two" data-k="CONVUNIT">CONV<br>UNIT</button>
+          <button class="k o" data-k="÷">÷</button>
 
-    <div class="navzone">
-      <div class="side">
-        <button class="k fn" data-k="SET">SET</button>
-        <button class="k fn" data-k="BACK">BACK</button>
+          <button class="k t c" data-k="C">C</button>
+          <button class="k n" data-k="7">7</button>
+          <button class="k n" data-k="8">8</button>
+          <button class="k n" data-k="9">9</button>
+          <button class="k o x" data-k="×">×</button>
+
+          <button class="k t sm" data-k="BKSP">BKSP</button>
+          <button class="k n" data-k="4">4</button>
+          <button class="k n" data-k="5">5</button>
+          <button class="k n" data-k="6">6</button>
+          <button class="k o" data-k="-">−</button>
+
+          <button class="k o colon" data-k=":">:</button>
+          <button class="k n" data-k="1">1</button>
+          <button class="k n" data-k="2">2</button>
+          <button class="k n" data-k="3">3</button>
+          <button class="k o" data-k="+">+</button>
+
+          <button class="k o pm" data-k="+/-">±</button>
+          <button class="k o dot" data-k=".">·</button>
+          <button class="k n" data-k="0">0</button>
+          <button class="k o sqrt" data-k="SQRT" aria-label="Square root"><svg viewBox="0 0 24 24"><path d="M2.5 13 L5.5 11.5 L9.5 19.5 L21 3.5"/></svg></button>
+          <button class="k eq" data-k="=">=</button>
+        </div>
       </div>
-      <div class="dpad">
-        <button class="k arrow up" data-k="UP" aria-label="Up"><span>▲</span></button>
-        <button class="k arrow left" data-k="LEFT" aria-label="Left"><span>◀</span></button>
-        <button class="k arrow right" data-k="RIGHT" aria-label="Right"><span>▶</span></button>
-        <button class="k arrow down" data-k="DOWN" aria-label="Down"><span>▼</span></button>
-        <button class="k enter" data-k="ENTER" aria-label="On/Off Enter"><small>ON/OFF</small>ENTER</button>
-      </div>
-      <div class="side">
-        <button class="k fn" data-k="M">M</button>
-        <button class="k fn clr" data-k="CLR">CLR</button>
-      </div>
     </div>
-
-    <div class="pad">
-      <button class="k op2" data-k="STO">STO</button>
-      <button class="k op2" data-k="RCL">RCL</button>
-      <button class="k op2" data-k=":">:</button>
-      <button class="k op" data-k="÷">÷</button>
-
-      <button class="k num" data-k="7">7</button>
-      <button class="k num" data-k="8">8</button>
-      <button class="k num" data-k="9">9</button>
-      <button class="k op" data-k="×">×</button>
-
-      <button class="k num" data-k="4">4</button>
-      <button class="k num" data-k="5">5</button>
-      <button class="k num" data-k="6">6</button>
-      <button class="k op" data-k="-">−</button>
-
-      <button class="k num" data-k="1">1</button>
-      <button class="k num" data-k="2">2</button>
-      <button class="k num" data-k="3">3</button>
-      <button class="k op" data-k="+">+</button>
-
-      <button class="k num" data-k="0">0</button>
-      <button class="k num" data-k=".">.</button>
-      <button class="k num" data-k="+/-">+/−</button>
-      <button class="k op eq" data-k="=">=</button>
-    </div>
-
-    <div class="foot-brand">ELECTRONIC FLIGHT COMPUTER</div>
   </div>
 </div>
 
 <details class="help">
-  <summary>Keyboard &amp; tips</summary>
+  <summary>How to use · keyboard shortcuts</summary>
   <ul>
-    <li><b>Enter</b> = ENTER (hold 3&nbsp;s = power off) · <b>Esc</b> = BACK · <b>Del</b> = CLR · <b>Backspace</b> = ◀</li>
-    <li><b>F</b> FLT · <b>P</b> PLAN · <b>T</b> TIMER · <b>C</b> CALC · <b>W</b> W/B · <b>S</b> SET · <b>M</b> Favorites</li>
-    <li><b>K</b> STO · <b>R</b> RCL · <b>N</b> +/− · <b>:</b> or <b>;</b> time separator</li>
-    <li>◀▶ on a value changes its units. Inputs accept arithmetic, e.g. <code>120+15</code>.</li>
-    <li>Times: <code>1:30</code> = 1 h 30 min. Lat/Long: <code>40:30</code> = 40°30′, +/− for S/W.</li>
+    <li><b>Orange □</b> = ON / ENTER (hold 3&nbsp;s to turn off) · <b>BACK</b> previous screen · <b>C</b> clear · <b>BKSP</b> delete</li>
+    <li><b>SET UNIT</b> changes the unit of the selected value · <b>CONV UNIT</b> converts it to the next unit</li>
+    <li><b>★</b> opens your favorite function (choose it in SET › Favorite) · <b>M</b> memory: ENTER recall, M store</li>
+    <li>Times: <code>1:30</code> = 1 h 30 min · Lat/Long: <code>40:30</code> = 40°30′, ± for S/W · Inputs accept arithmetic, e.g. <code>120+15</code></li>
+    <li>Keyboard: digits, <code>+ - * /</code>, Enter, Esc = BACK, Del = C, Backspace = BKSP, ↑ ↓, F/P/T/C/W/S/M, A = ★, U = SET UNIT, V = CONV UNIT, N = ±, R = √</li>
   </ul>
 </details>
 

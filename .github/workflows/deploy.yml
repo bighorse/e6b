@@ -48,7 +48,7 @@ jobs:
           chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
           rsync -avz --delete -e "ssh -i ~/.ssh/id_deploy -p $PORT" \
-            index.html css js "$USER@$HOST:$DEST/"
+            index.html css js img "$USER@$HOST:$DEST/"
 
       - name: Smoke test
         if: steps.secrets.outputs.ready == 'true'

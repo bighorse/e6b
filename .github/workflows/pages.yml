@@ -28,7 +28,7 @@ jobs:
       - name: Push site to gh-pages
         run: |
           site=$(mktemp -d)
-          cp -r index.html css js "$site"/
+          cp -r index.html css js img "$site"/
           touch "$site/.nojekyll"
           cd "$site"
           git init -q -b gh-pages

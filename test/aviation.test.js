@@ -96,10 +96,15 @@ test('function calcs', () => {
   near(FNS.climb.calc({ alt: 3000, gs: 120, dist: 10 }).rate, 600, 1e-9);
   // W/B totals
   const st = { wt: [null, 1500, 170], arm: [null, 85, 90] };
-  const wb = FNS.wb.calc({ rf: 1 }, { idx: 1, get: (id, i) => (st[id] || [])[i] ?? null });
+  const wb = FNS.wb.calc({ rf: 1 }, { n: 2, get: (id, i) => (st[id] || [])[i] ?? null });
   assert.equal(wb.twt, 1670); assert.equal(wb.tmom, 142800); near(wb.cg, 85.509, 0.001);
-  // Flight plan totals
+  assert.equal(wb['mom@1'], 127500); assert.equal(wb['mom@2'], 15300);
+  // Flight plan per-leg outputs and totals
   const legs = { tcrs: [null, 90, 180], dist: [null, 120, 60], tas: [null, 120, 120], frate: [null, 10, 10] };
-  const pl = FNS.plan.calc({}, { idx: 1, get: (id, i) => (legs[id] || [])[i] ?? null });
+  const pl = FNS.plan.calc({}, { n: 2, get: (id, i) => (legs[id] || [])[i] ?? null });
   near(pl.tdist, 180, 1e-9); near(pl.tete, 1.5, 1e-9); near(pl.tfuel, 15, 1e-9);
+  near(pl['gs@1'], 120, 1e-9); near(pl['fuel@2'], 5, 1e-9);
+  // Aircraft profile
+  const pr = FNS.profile.calc({ tas: 120, frate: 10, fcap: 50 });
+  near(pr.endur, 5, 1e-9); near(pr.range, 600, 1e-9);
 });

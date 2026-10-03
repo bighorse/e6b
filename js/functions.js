@@ -230,67 +230,72 @@
   });
 
   // ---------------- PLAN: Flight plan (legs) ----------------
-  var LEGS = 20;
+  // Item-based functions: fields with `per` repeat for each item (leg / station);
+  // calc returns per-item outputs keyed "id@i" and totals keyed by id.
   def('plan', 'Flight Plan',
-    [I('leg', 'Leg', 'index', { max: LEGS }),
-     I('tcrs', 'TCrs', 'dir', { per: true }), I('dist', 'Dist', 'dist', { per: true }),
-     I('tas', 'TAS', 'speed', { per: true, inherit: true }),
+    [I('tcrs', 'TCrs', 'dir', { per: true }), I('dist', 'Dist', 'dist', { per: true }),
+     I('tas', 'TAS', 'speed', { per: true, inherit: true, profile: 'tas' }),
      I('wdir', 'WDir', 'dir', { per: true, inherit: true, opt: true }),
      I('wspd', 'WSpd', 'speed', { per: true, inherit: true, opt: true }),
      I('var', 'Var', 'var', { per: true, inherit: true, opt: true }),
-     I('frate', 'Fuel Rate', 'rate', { per: true, inherit: true, opt: true }),
-     O('thdg', 'THdg', 'dir'), O('mhdg', 'MHdg', 'dir'), O('gs', 'GS', 'speed'),
-     O('ete', 'ETE', 'dur'), O('fuel', 'Fuel', 'vol'),
-     O('tdist', 'Tot Dist', 'dist', { total: true }), O('tete', 'Tot ETE', 'dur', { total: true }),
-     O('tfuel', 'Tot Fuel', 'vol', { total: true })],
+     I('frate', 'Fuel Rate', 'rate', { per: true, inherit: true, opt: true, profile: 'frate' }),
+     O('thdg', 'THdg', 'dir', { per: true }), O('mhdg', 'MHdg', 'dir', { per: true }),
+     O('gs', 'GS', 'speed', { per: true }), O('ete', 'ETE', 'dur', { per: true }),
+     O('fuel', 'Fuel', 'vol', { per: true }),
+     O('tdist', 'Dist', 'dist', { total: true }), O('tete', 'ETE', 'dur', { total: true }),
+     O('tfuel', 'Fuel', 'vol', { total: true })],
     function (v, ctx) {
-      function leg(i) {
+      var r = {}, td = 0, te = 0, tf = 0, any = false, anyFuel = false;
+      for (var i = 1; i <= ctx.n; i++) {
         var g = function (id) { return ctx.get(id, i); };
         var tcrs = g('tcrs'), dist = g('dist'), tas = g('tas');
-        if (!has(tcrs, dist, tas)) return null;
+        if (!has(tcrs, dist, tas)) continue;
         var w = A.windTriangle(tcrs, tas, g('wdir') || 0, g('wspd') || 0);
-        if (!w) return null;
+        if (!w) continue;
         var ete = dist / w.gs, fr = g('frate');
-        return { thdg: w.thdg, mhdg: A.dir360(w.thdg + (g('var') || 0)), gs: w.gs, ete: ete,
-                 fuel: fr != null ? fr * ete : null, dist: dist };
-      }
-      var r = leg(ctx.idx) || {};
-      var td = 0, te = 0, tf = 0, any = false, anyFuel = false;
-      for (var i = 1; i <= LEGS; i++) {
-        var l = leg(i);
-        if (!l) continue;
-        any = true; td += l.dist; te += l.ete;
-        if (l.fuel != null) { tf += l.fuel; anyFuel = true; }
+        r['thdg@' + i] = w.thdg; r['mhdg@' + i] = A.dir360(w.thdg + (g('var') || 0));
+        r['gs@' + i] = w.gs; r['ete@' + i] = ete;
+        any = true; td += dist; te += ete;
+        if (fr != null) { r['fuel@' + i] = fr * ete; tf += fr * ete; anyFuel = true; }
       }
       if (any) { r.tdist = td; r.tete = te; if (anyFuel) r.tfuel = tf; }
-      delete r.dist;
       return r;
-    }, { indexed: 'leg', count: LEGS });
+    }, { items: 'LEG', max: 20, clearRow: 'CLEAR PLAN' });
+
+  def('profile', 'Aircraft Profile',
+    [I('tas', 'Cruise TAS', 'speed'), I('frate', 'Fuel Rate', 'rate'), I('fcap', 'Fuel Cap', 'vol'),
+     I('ewt', 'Empty Wt', 'weight'), I('earm', 'Empty Arm', 'arm'),
+     O('endur', 'Endurance', 'dur'), O('range', 'Range', 'dist')],
+    function (v) {
+      var r = {};
+      if (has(v.fcap, v.frate) && v.frate > 0) {
+        r.endur = v.fcap / v.frate;
+        if (v.tas != null) r.range = r.endur * v.tas;
+      }
+      return r;
+    });
 
   // ---------------- W/B ----------------
-  var STATIONS = 20;
-  def('wb', 'Weight & Balance',
-    [I('rf', 'RF', 'num', { def: 1, dp: 0 }),
-     I('st', 'Item', 'index', { max: STATIONS }),
+  def('wb', 'Weight and Balance',
+    [I('rf', 'RF', 'num', { dp: 0 }),
      I('wt', 'Wt', 'weight', { per: true }), I('arm', 'Arm', 'arm', { per: true }),
-     O('mom', 'Mom', 'mom'),
-     O('twt', 'Tot Wt', 'weight', { total: true }), O('tmom', 'Tot Mom', 'mom', { total: true }),
+     O('mom', 'Mom', 'mom', { per: true }),
+     O('twt', 'Wt', 'weight', { total: true }), O('tmom', 'Mom', 'mom', { total: true }),
      O('cg', 'CG', 'arm', { total: true })],
     function (v, ctx) {
       var rf = v.rf || 1, tw = 0, tm = 0, any = false, r = {};
-      for (var i = 1; i <= STATIONS; i++) {
+      for (var i = 1; i <= ctx.n; i++) {
         var wt = ctx.get('wt', i), arm = ctx.get('arm', i);
         if (wt == null) continue;
         any = true; tw += wt;
-        if (arm != null) tm += wt * arm;
-        if (i === ctx.idx && arm != null) r.mom = wt * arm / rf;
+        if (arm != null) { tm += wt * arm; r['mom@' + i] = wt * arm / rf; }
       }
       if (any) {
         r.twt = tw; r.tmom = tm / rf;
         if (tw !== 0) r.cg = tm / tw;
       }
       return r;
-    }, { indexed: 'st', count: STATIONS, advance: 'arm' });
+    }, { items: 'ITEM', max: 20 });
 
   def('wshift', 'Weight Shift',
     [I('tw', 'Tot Wt', 'weight', { solve: true }), I('sw', 'Wt Shift', 'weight', { solve: true }),
@@ -326,7 +331,7 @@
 
   // ---------------- Menus ----------------
   var MENUS = {
-    FLT: { title: 'Flight', tag: 'FLT', items: [
+    FLT: { title: 'Flight', tag: 'FLIGHT', items: [
       { label: 'Altitude', menu: 'ALT' },
       { label: 'Airspeed', menu: 'AIRSPD' },
       { label: 'Fuel', menu: 'FUEL' },
@@ -344,51 +349,41 @@
       { label: 'Holding Pattern', fn: 'hold' },
       { label: 'Unit Conversions', menu: 'CONV' }
     ] },
-    ALT: { title: 'Altitude', tag: 'FLT', items: [
+    ALT: { title: 'Altitude', tag: 'FLIGHT', items: [
       { label: 'Pressure Altitude', fn: 'palt' },
       { label: 'Density Altitude', fn: 'dalt' },
       { label: 'Cloud Base', fn: 'cloud' },
       { label: 'Standard Atmosphere', fn: 'stdatm' }
     ] },
-    AIRSPD: { title: 'Airspeed', tag: 'FLT', items: [
+    AIRSPD: { title: 'Airspeed', tag: 'FLIGHT', items: [
       { label: 'Planned TAS', fn: 'ptas' },
       { label: 'Actual TAS', fn: 'atas' },
       { label: 'Mach Number', fn: 'mach' }
     ] },
-    FUEL: { title: 'Fuel', tag: 'FLT', items: [
+    FUEL: { title: 'Fuel', tag: 'FLIGHT', items: [
       { label: 'Fuel Burn', fn: 'fburn' },
       { label: 'Fuel Rate', fn: 'frate' },
       { label: 'Endurance', fn: 'endur' },
       { label: 'Fuel Weight', fn: 'fwt' }
     ] },
-    CLIMB: { title: 'Climb & Descent', tag: 'FLT', items: [
+    CLIMB: { title: 'Climb & Descent', tag: 'FLIGHT', items: [
       { label: 'Climb / Descent', fn: 'climb' },
       { label: 'Top of Descent', fn: 'tod' },
       { label: 'Required Rate', fn: 'reqrate' }
     ] },
-    CONV: { title: 'Unit Conversions', tag: 'FLT', items: Units.CONVERSIONS.map(function (c) {
+    CONV: { title: 'Unit Conversions', tag: 'FLIGHT', items: Units.CONVERSIONS.map(function (c) {
       return { label: c.title, fn: 'conv_' + c.type };
     }) },
-    PLAN: { title: 'Plan', tag: 'PLAN', items: [
-      { label: 'Flight Plan', fn: 'plan' },
-      { label: 'Clear Flight Plan', action: 'clearPlan' }
-    ] },
-    TIMER: { title: 'Timer', tag: 'TIMER', items: [
-      { label: 'Stopwatch', screen: 'stopwatch' },
-      { label: 'Countdown', screen: 'countdown' },
-      { label: 'Clock', screen: 'clock' }
-    ] },
-    WB: { title: 'Weight & Balance', tag: 'W/B', items: [
-      { label: 'Weight & Balance', fn: 'wb' },
+    WB: { title: 'Weight and Balance', tag: 'E6-B', items: [
+      { label: 'Weight and Balance', fn: 'wb' },
       { label: 'Weight Shift', fn: 'wshift' },
       { label: 'Weight Add/Remove', fn: 'wadd' },
-      { label: '% MAC', fn: 'mac' },
-      { label: 'Clear W/B Items', action: 'clearWB' }
+      { label: '% MAC', fn: 'mac' }
     ] }
   };
 
   // Which menu tag each function belongs to (for the status bar)
-  var FN_TAG = {};
+  var FN_TAG = { plan: 'PLAN', profile: 'SETTINGS' };
   Object.keys(MENUS).forEach(function (m) {
     MENUS[m].items.forEach(function (it) { if (it.fn) FN_TAG[it.fn] = MENUS[m].tag; });
   });
