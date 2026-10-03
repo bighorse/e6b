@@ -1,0 +1,38 @@
+name: Verify accuracy
+
+on:
+  push:
+    branches: [main, master, feature/cx3-flight-computer]
+  workflow_dispatch:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test test/*.test.js
+
+  oracle:
+    name: Expected values vs independent references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r test/oracle/requirements.txt
+      - run: python test/oracle/oracle.py
+
+  display:
+    name: Manual examples vs simulator display
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - run: node test/e2e/docvals.js

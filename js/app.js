@@ -66,7 +66,9 @@
   function pad(n, w) { n = String(n); while (n.length < (w || 2)) n = '0' + n; return n; }
   function fmtNum(x, dp) {
     if (x == null || !isFinite(x)) return '--';
-    var s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+    // nudge by a few ulps so exact halves hidden by binary error (7.4999999… for 7.5) round up
+    var a = Math.abs(x) * (1 + 4e-15);
+    var s = a.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
     return (x < 0 && !/^[0.,]*$/.test(s) ? '-' : '') + s;
   }
   function fmtHMS(h) {
