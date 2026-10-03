@@ -12,7 +12,12 @@ const path = require('path');
   await p.waitForTimeout(1600);
 
   let pass = 0, fail = 0;
-  const check = (name, ok, got) => { ok ? pass++ : fail++; if (!ok) console.log('FAIL', name, '→', JSON.stringify(got)); };
+  // retry a read until it matches (up to 1.5 s): screen updates are not instant on slow CI machines
+  const expect = async (name, read, ok) => {
+    let got;
+    for (let i = 0; i < 30; i++) { got = await read(); if (ok(got)) { pass++; return; } await p.waitForTimeout(50); }
+    fail++; console.log('FAIL', name, '→', JSON.stringify(got));
+  };
 
   // tap a key on the device the way a finger does
   const tap = async (k) => {
@@ -25,88 +30,86 @@ const path = require('path');
   const toast = () => p.locator('#screen .toast').count().then(n => n ? p.locator('#screen .toast').innerText() : '');
 
   await tap('CALC');
-  check('fresh line shows 0', (await input()).trim() === '0', await input());
+  await expect('fresh line shows 0', async () => await input(), v => (v).trim() === '0');
 
   await taps('2 + 3 × 4 =');
-  check('precedence 2+3×4 = 14', (await tape()).at(-1) === '2+3×4 = 14', await tape());
+  await expect('precedence 2+3×4 = 14', async () => await tape(), v => (v).at(-1) === '2+3×4 = 14');
 
   await taps('× 2 =');
-  check('continue from result shows Ans', (await tape()).at(-1) === 'Ans×2 = 28', await tape());
+  await expect('continue from result shows Ans', async () => await tape(), v => (v).at(-1) === 'Ans×2 = 28');
 
   await taps('1 ÷ 3 = × 3 =');
-  check('1÷3×3 is exactly 1', (await tape()).at(-1) === 'Ans×3 = 1', await tape());
+  await expect('1÷3×3 is exactly 1', async () => await tape(), v => (v).at(-1) === 'Ans×3 = 1');
 
   await taps('1 : 3 0 + 0 : 4 5 =');
-  check('time sum', (await tape()).at(-1) === '1:30+0:45 = 2:15:00', await tape());
+  await expect('time sum', async () => await tape(), v => (v).at(-1) === '1:30+0:45 = 2:15:00');
   await taps('1 : 3 0 ÷ 0 : 3 0 =');
-  check('time ÷ time is a number', (await tape()).at(-1) === '1:30÷0:30 = 3', await tape());
+  await expect('time ÷ time is a number', async () => await tape(), v => (v).at(-1) === '1:30÷0:30 = 3');
 
   await taps('7 ÷ 0 =');
-  check('div by zero toast', (await toast()) === 'Div by Zero', await toast());
-  check('line kept for correction', (await input()).includes('7÷0'), await input());
+  await expect('div by zero toast', async () => await toast(), v => (v) === 'Div by Zero');
+  await expect('line kept for correction', async () => await input(), v => (v).includes('7÷0'));
   await taps('C');
 
   await taps('1 6 SQRT');
-  check('√ toggles before the number', (await input()).includes('√16'), await input());
+  await expect('√ toggles before the number', async () => await input(), v => (v).includes('√16'));
   await taps('=');
-  check('√16 = 4', (await tape()).at(-1) === '√16 = 4', await tape());
+  await expect('√16 = 4', async () => await tape(), v => (v).at(-1) === '√16 = 4');
 
   await taps('5 × +/- 3 =');
-  check('± makes a negative operand', (await tape()).at(-1) === '5×-3 = -15', await tape());
+  await expect('± makes a negative operand', async () => await tape(), v => (v).at(-1) === '5×-3 = -15');
 
   // history: scroll back past the 5 visible lines and recall
   for (let i = 0; i < 8; i++) await tap('UP');
-  const sel = await p.locator('#screen .tl.sel').innerText().catch(() => '');
-  check('selected old line is visible', sel.replace(/\n/g, ' ') === '2+3×4 = 14', sel);
+  await expect('selected old line is visible', async () => (await p.locator('#screen .tl.sel').innerText().catch(() => '')).replace(/\n/g, ' '),
+    v => v === '2+3×4 = 14');
   await tap('ENTER');
-  check('recall inserts the value', (await input()).trim().startsWith('14'), await input());
+  await expect('recall inserts the value', async () => await input(), v => (v).trim().startsWith('14'));
   await taps('C');
 
   // memory: store the last result, recall it in place of a number being typed
   await taps('2 5 0 = M 3 M');
-  check('stored toast', (await toast()) === 'Stored M3', await toast());
+  await expect('stored toast', async () => await toast(), v => (v) === 'Stored M3');
   await taps('1 2 M 3 ENTER');
-  check('recall replaces the number being typed', (await input()).trim().startsWith('250'), await input());
+  await expect('recall replaces the number being typed', async () => await input(), v => (v).trim().startsWith('250'));
   await taps('C');
 
   // long line: the end stays visible
   await taps('1 2 3 4 5 6 7 8 9 + 9 8 7 6 5 4 3 2 1 + 1 1 1 1 1');
-  const clip = await p.$eval('#screen .cin', el => {
+  await expect('cursor at the end stays visible on a long line', () => p.$eval('#screen .cin', el => {
     const r = el.getBoundingClientRect(), c = el.querySelector('.cur').getBoundingClientRect();
-    return { cursorInside: c.right <= r.right + 1 && c.left >= r.left - 1 };
-  });
-  check('cursor at the end stays visible on a long line', clip.cursorInside, clip);
+    return { cursorInside: c.right <= r.right + 1 && c.left >= r.left - 1, long: el.textContent.length > 20 };
+  }), v => v.cursorInside && v.long);
   await taps('C');
 
   // line limit
   for (let i = 0; i < 41; i++) await tap('9');
-  check('Line Full toast', (await toast()) === 'Line Full', await toast());
+  await expect('Line Full toast', async () => await toast(), v => (v) === 'Line Full');
   await taps('C');
 
   // computer keyboard
   await p.keyboard.type('12*3');
   await p.keyboard.press('Enter');
   await p.waitForTimeout(100);
-  check('keyboard 12*3 = 36', (await tape()).at(-1) === '12×3 = 36', await tape());
+  await expect('keyboard 12*3 = 36', async () => await tape(), v => (v).at(-1) === '12×3 = 36');
   await p.keyboard.type('7/2=');
-  check('keyboard 7/2 = 3.5', (await tape()).at(-1) === '7÷2 = 3.5', await tape());
+  await expect('keyboard 7/2 = 3.5', async () => await tape(), v => (v).at(-1) === '7÷2 = 3.5');
 
   // CONV UNIT opens conversions, BACK returns with the tape intact
   await tap('CONVUNIT');
-  const conv = await p.locator('#screen').innerText();
-  check('CONV UNIT opens Unit Conversions', conv.includes('Temperature'), conv.slice(0, 60));
+  await expect('CONV UNIT opens Unit Conversions', () => p.locator('#screen').innerText(), v => v.includes('Temperature'));
   await tap('CALC');
-  check('tape survives leaving CALC', (await tape()).at(-1) === '7÷2 = 3.5', await tape());
+  await expect('tape survives leaving CALC', async () => await tape(), v => (v).at(-1) === '7÷2 = 3.5');
 
   // persistence: Ans survives a reload
   await p.waitForTimeout(300);
   await p.reload(); await p.waitForTimeout(1600);
   await tap('CALC'); await taps('+ 1 =');
-  check('Ans survives a reload', (await tape()).at(-1) === 'Ans+1 = 4.5', await tape());
+  await expect('Ans survives a reload', async () => await tape(), v => (v).at(-1) === 'Ans+1 = 4.5');
 
   // C then C clears everything
   await taps('C');
-  check('C on a fresh line clears the tape', (await tape()).length === 0, await tape());
+  await expect('C on a fresh line clears the tape', async () => await tape(), v => (v).length === 0);
 
   console.log(`${pass}/${pass + fail} CALC screen checks passed`, errs);
   await b.close();
