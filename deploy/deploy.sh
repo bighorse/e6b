@@ -9,5 +9,5 @@ DEPLOY_PORT="${DEPLOY_PORT:-22}"
 
 cd "$(dirname "$0")/.."
 rsync -avz --delete -e "ssh -p $DEPLOY_PORT" \
-  index.html css js img "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+  index.html manifest.webmanifest css js img "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
 echo "Deployed to http://$DEPLOY_HOST/"

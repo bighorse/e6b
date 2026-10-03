@@ -962,14 +962,31 @@
       if (e.key === 'Enter' || e.key === 'NumpadEnter') { var el = keyEl('ENTER'); if (el) el.classList.remove('pressed'); enterUp(); }
     });
     window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', function () { setTimeout(fit, 300); });
     fit();
+  }
+
+  // safe-area insets (iPhone status bar / home indicator), read from CSS env()
+  function safeInsets() {
+    var probe = document.getElementById('safe-probe');
+    if (!probe) {
+      probe = document.createElement('div');
+      probe.id = 'safe-probe';
+      probe.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;' +
+        'padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
+      document.body.appendChild(probe);
+    }
+    var cs = getComputedStyle(probe);
+    return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
   }
 
   function fit() {
     var dev = document.getElementById('device'), wrap = document.getElementById('stage');
-    // phones: fill the width (tiny margin); larger screens: fit the whole device
-    var w = window.innerWidth, h = window.innerHeight, phone = w < 600;
-    var k = phone ? Math.min((w - 6) / dev.offsetWidth, (h - 4) / dev.offsetHeight)
+    // phones: fill the width (tiny margin) but never past the visible height;
+    // larger screens: fit the whole device
+    var ins = safeInsets();
+    var w = window.innerWidth, h = window.innerHeight - Math.max(4, ins.top) - ins.bottom, phone = w < 600;
+    var k = phone ? Math.min((w - 6) / dev.offsetWidth, (h - 6) / dev.offsetHeight)
                   : Math.min((w - 16) / dev.offsetWidth, (h - 16) / dev.offsetHeight, 1.6);
     dev.style.transform = 'scale(' + k + ')';
     wrap.style.height = Math.ceil(dev.offsetHeight * k + 8) + 'px';
