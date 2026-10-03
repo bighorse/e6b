@@ -67,10 +67,13 @@ const path = require('path');
   await expect('recall inserts the value', async () => await input(), v => (v).trim().startsWith('14'));
   await taps('C');
 
-  // memory: store the last result, recall it in place of a number being typed
-  await taps('2 5 0 = M 3 M');
-  await expect('stored toast', async () => await toast(), v => (v) === 'Stored M3');
-  await taps('1 2 M 3 ENTER');
+  // memory (one memory, as on the CX-3): M opens Recall / Store / Clear
+  await taps('2 5 0 = M');
+  await expect('memory screen offers to store the result', () => p.locator('#screen').innerText(),
+    v => /MEMORY/.test(v) && /Store\s+250/.test(v));
+  await taps('ENTER');
+  await expect('stored toast', async () => await toast(), v => (v) === 'Stored');
+  await taps('1 2 M ENTER');
   await expect('recall replaces the number being typed', async () => await input(), v => (v).trim().startsWith('250'));
   await taps('C');
 
@@ -97,7 +100,7 @@ const path = require('path');
 
   // CONV UNIT opens conversions, BACK returns with the tape intact
   await tap('CONVUNIT');
-  await expect('CONV UNIT opens Unit Conversions', () => p.locator('#screen').innerText(), v => v.includes('Temperature'));
+  await expect('CONV UNIT opens Unit Conversions', () => p.locator('#screen').innerText(), v => v.includes('Unit Conversions') && v.includes('Temp'));
   await tap('CALC');
   await expect('tape survives leaving CALC', async () => await tape(), v => (v).at(-1) === '7÷2 = 3.5');
 

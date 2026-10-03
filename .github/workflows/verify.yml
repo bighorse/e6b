@@ -27,7 +27,7 @@ jobs:
       - run: python test/oracle/oracle.py
 
   display:
-    name: Manual examples vs simulator display
+    name: Manual examples vs the official emulator screens
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,5 +35,5 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
-      - run: node test/e2e/docvals.js
+      - run: node test/e2e/examples.e2e.js
       - run: node test/e2e/calc.e2e.js

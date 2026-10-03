@@ -1,209 +1,264 @@
-"""Independent oracle for the CX-3 manual / test-plan expected values.
+"""Independent oracle for the manual's worked examples.
 
-Nothing here imports the app's JavaScript. Physics comes from third-party
-libraries (aerocalc3: airspeed / density altitude / std atmosphere;
-ambiance: ICAO 1993 standard atmosphere); geometry is solved numerically
-(bisection / quadrature) instead of the app's closed-form formulas; unit
-conversions use exact international definitions.
+The expected screens in test/official/examples.json were captured from ASA's
+official CX-3 emulator. This script checks those numbers once more against
+references that share no code with the simulator or the emulator: aerocalc3
+(airspeed, density altitude, standard atmosphere), ambiance (ICAO standard
+atmosphere), and plain geometry solved numerically (bisection / quadrature)
+rather than with the closed-form formulas the simulator uses.
 
-Run:  pip install aerocalc3 ambiance  &&  python test/oracle/oracle.py
+Run:  pip install -r test/oracle/requirements.txt  &&  python test/oracle/oracle.py
 """
+import json
 import math
+import os
 from aerocalc3 import airspeed as AS, std_atm as SA
 from ambiance import Atmosphere
 
 FT = 0.3048                 # m, exact
 NM = 1852.0                 # m, exact
+SM = 1609.344               # m, exact
 FT_PER_NM = NM / FT
 KT = NM / 3600              # m/s
 INHG = 3386.389             # Pa
-R_EARTH_NM = 3440.065       # mean earth radius used for spherical navigation
+LB_PER_GAL = {'Av Gas': 6.0, 'Jet Fuel': 6.84}
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+EX = {e['id']: e for e in json.load(open(os.path.join(HERE, '..', 'official', 'examples.json')))}
 results = []
 
-def check(case, name, expected_shown, oracle_value, dp, tol_units=0.5):
-    """expected_shown: the value printed in the doc; pass if the oracle,
-    rounded to the same decimals, is within tol_units of the last digit."""
-    step = 10 ** (-dp)
-    ok = abs(oracle_value - expected_shown) <= tol_units * step + 1e-9
-    results.append((ok, case, name, expected_shown, round(oracle_value, dp + 2)))
 
-def hms(h):
-    t = round(h * 3600)
-    return t  # seconds
+def shown(ex, label, nth=1):
+    """value text the example expects for a row label (nth occurrence)"""
+    rows = [r for r in EX[ex]['expect'] if r[0] == label]
+    return rows[nth - 1][1]
+
+
+def num(text):
+    """number and decimals of a displayed value; h:m:s → seconds (dp 0)"""
+    if ':' in text:
+        neg = text.startswith('-')
+        p = [float(x) for x in text.lstrip('-').split(':')]
+        s = p[0] * 3600 + p[1] * 60 + (p[2] if len(p) > 2 else 0)
+        return (-s if neg else s), 0
+    dp = len(text.split('.')[1]) if '.' in text else 0
+    return float(text), dp
+
+
+def check(ex, label, oracle_value, nth=1):
+    """pass when the oracle rounds to the number shown; h:m:s values are
+    shown with the seconds truncated, so there the oracle may be up to 1 s more."""
+    text = shown(ex, label, nth)
+    val, dp = num(text)
+    if ':' in text:
+        ok = -1e-6 <= oracle_value - val < 1 + 1e-6
+    else:
+        ok = abs(oracle_value - val) <= 0.5 * 10 ** (-dp) + 1e-9
+    results.append((ok, ex, label, text, round(oracle_value, dp + 3)))
+
+
+def check_text(ex, label, want, nth=1):
+    text = shown(ex, label, nth)
+    results.append((text == want, ex, label, text, want))
+
+
+def f2c(f): return (f - 32) / 1.8
+def c2f(c): return c * 1.8 + 32
+def wrap360(a): return a % 360
+def hms(sec): return sec
+
+
+def bisect(f, lo, hi, n=200):
+    flo = f(lo)
+    for _ in range(n):
+        mid = (lo + hi) / 2
+        fm = f(mid)
+        if (fm > 0) == (flo > 0):
+            lo, flo = mid, fm
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+# ---------------------------------------------------------------- conversions
+check('E01', 'Dist', 100 * NM / SM)
+check_text('E01b', 'Temp', '%d' % round(f2c(59)))
+check('E01b', 'Angle', 45 + 30 / 60)
 
 # ---------------------------------------------------------------- altitude
-# Pressure altitude: altitude in the standard atmosphere of the altimeter setting
 pa = 5000 + SA.press2alt(30.12, press_units='in HG', alt_units='ft')
-check('§4', 'PAlt (5000 ft, 30.12)', 4817, pa, 0)
-for oat, shown in [(25, 7262), (15, 6150), (-15, 2505)]:
-    check('§4/T03', f'DAlt (PA 5000, OAT {oat})', shown,
-          SA.density_alt(5000, oat, alt_units='ft', temp_units='C'), 0)
-# PAlt 5000 m (SET UNIT case) = 16404.2 ft
-check('T04', 'DAlt (PA 5000 m, OAT 25)', 20984,
-      SA.density_alt(5000 / FT, 25, alt_units='ft', temp_units='C'), 0)
-check('T04', 'DAlt 7262 ft in m', 2213, 7262 * FT, 0)
+check('E02', 'PAlt', pa)
+check('E02', 'DAlt', SA.density_alt(pa, f2c(77), alt_units='ft', temp_units='C'))
+# OAT that gives density altitude 8500 ft at pressure altitude 6000 ft
+t = bisect(lambda c: SA.density_alt(6000, c, alt_units='ft', temp_units='C') - 8500, -60, 60)
+check('E03', 'OAT', c2f(t))
 
-# Cloud base: FAA PHAK rule, spread / 2.5 °C per 1,000 ft
-check('§4', 'Cloud base AGL', 3200, (22 - 14) / 2.5 * 1000, 0)
+# Cloud base: the CX-3 uses a 2.444 °C (4.4 °F) spread per 1,000 ft
+check('E04', 'AGL', (f2c(72) - f2c(57)) / 2.444444 * 1000)
 
-# Standard atmosphere at 10,000 ft (ICAO 1993, ambiance). Pressure altitude is
-# geopotential; ambiance takes geometric height, so convert (r0 = 6,356,766 m).
+# Standard atmosphere (ICAO, ambiance). Pressure altitude is geopotential;
+# ambiance takes geometric height, so convert (r0 = 6,356,766 m).
 R0 = 6356766.0
-H = 10000 * FT
-atm = Atmosphere(R0 * H / (R0 - H))
-check('§4', 'ISA temp 10000 ft', -4.8, atm.temperature_in_celsius[0], 1)
-check('§4', 'ISA press 10000 ft (inHg)', 20.58, atm.pressure[0] / INHG, 2)
-check('§4', 'ISA density ratio 10000 ft', 0.7385, atm.density[0] / Atmosphere(0).density[0], 4)
-check('§4', 'ISA speed of sound 10000 ft (kt)', 638.33, atm.speed_of_sound[0] / KT, 2)
+def atm(h_ft):
+    H = h_ft * FT
+    return Atmosphere(R0 * H / (R0 - H))
+check('E05', 'Baro', atm(10000).pressure[0] / INHG)
+check('E05', 'OAT', c2f(atm(10000).temperature_in_celsius[0]))
+check('E06', 'Alt', SA.press2alt(20.58, press_units='in HG', alt_units='ft'))
 
 # ---------------------------------------------------------------- airspeed
-tas = AS.cas2tas(150, 8000, temp=0, speed_units='kt', alt_units='ft', temp_units='C')
-check('§4', 'Planned TAS', 169.08, tas, 2)
-check('§4', 'Planned TAS Mach', 0.263, AS.tas2mach(tas, 0, speed_units='kt', temp_units='C'), 3)
-check('§4', 'Planned TAS DAlt', 8101, SA.density_alt(8000, 0, alt_units='ft', temp_units='C'), 0)
-m = AS.cas_alt2mach(250, 35000, speed_units='kt', alt_units='ft')
-oat_k = (-30 + 273.15) / (1 + 0.2 * m * m)          # TAT -> static temperature, recovery factor 1
-check('§4', 'Actual TAS Mach', 0.741, m, 3)
-check('§4', 'Actual TAS OAT', -54.1, oat_k - 273.15, 1)
-check('§4', 'Actual TAS', 427.50, AS.mach2tas(m, oat_k - 273.15, speed_units='kt', temp_units='C'), 2)
-check('§4', 'Mach (OAT -40, TAS 450)', 0.756, AS.tas2mach(450, -40, speed_units='kt', temp_units='C'), 3)
-check('§4', 'Speed of sound at -40 °C (kt)', 595.01, AS.mach2tas(1, -40, speed_units='kt', temp_units='C'), 2)
+oat = f2c(41)
+m = AS.cas_alt2mach(135, 8000, speed_units='kt', alt_units='ft')
+check('E07', 'MACH', m)
+check('E07', 'TAS', AS.cas2tas(135, 8000, temp=oat, speed_units='kt', alt_units='ft', temp_units='C'))
+check('E07', 'TAT', c2f((oat + 273.15) * (1 + 0.2 * m * m) - 273.15))
 
-# ---------------------------------------------------------------- fuel / time / distance (arithmetic)
-check('§4', 'Fuel burn 9.5 gal/h × 2:15', 21.4, 9.5 * 2.25, 1)
-check('§4', 'Fuel rate 30 gal / 3:20', 9.0, 30 / (3 + 20 / 60), 1)
-check('§4', 'Endurance 48/8.5 (s)', 5 * 3600 + 38 * 60 + 49, hms(48 / 8.5), 0)
-check('§4', 'AvGas 40 gal (6.0 lb/gal)', 240.0, 40 * 6.0, 1)
-check('§4', 'Jet A 40 gal (6.7 lb/gal)', 268.0, 40 * 6.7, 1)
-check('T09', 'Oil 40 gal (7.5 lb/gal)', 300.0, 40 * 7.5, 1)
-check('§4', 'GS 150 nm / 1:15', 120.00, 150 / 1.25, 2)
-check('§4', 'Time 210/140 (s)', 5400, hms(210 / 140), 0)
-check('§4', 'Distance 125 kt × 0:48', 100.0, 125 * 0.8, 1)
-check('T08', 'ETA 23:59 + 100/120 h (min of day)', 49, ((23 * 60 + 59) + 100 / 120 * 60) % 1440, 0)
+m = AS.cas_alt2mach(250, 25000, speed_units='kt', alt_units='ft')
+oat_k = (f2c(4) + 273.15) / (1 + 0.2 * m * m)        # probe recovery factor K = 1
+check('E08', 'MACH', m)
+check('E08', 'OAT', c2f(oat_k - 273.15))
+check('E08', 'TAS', m * math.sqrt(1.4 * 287.05287 * oat_k) / KT)
 
-# ---------------------------------------------------------------- wind triangle (numerical)
+check('E09', 'TAS', 0.78 * math.sqrt(1.4 * 287.05287 * (f2c(-65) + 273.15)) / KT)
+check('E09', 'CAS', AS.mach_alt2cas(0.78, 35000, speed_units='kt', alt_units='ft'))
+check('E09', 'TAT', c2f((f2c(-65) + 273.15) * (1 + 0.2 * 0.78 ** 2) - 273.15))
+
+# ---------------------------------------------------------------- fuel
+check('E10', 'Vol', 2.5 * 9.5)
+check('E10', 'Wt', 2.5 * 9.5 * LB_PER_GAL['Av Gas'])
+check('E10', 'Rate', 9.5 * LB_PER_GAL['Av Gas'], nth=2)
+check('E11', 'Wt', 2.5 * 9.5 * LB_PER_GAL['Jet Fuel'])
+check('E11', 'Rate', 9.5 * LB_PER_GAL['Jet Fuel'], nth=2)
+
+# ---------------------------------------------------------------- time, speed, distance
+check('E12', 'GS', 150 / 1.25)
+check('E12', 'Dur', 1.25 * 3600)
+check('E13', 'Dur', 210 / 140)
+check('E14', 'Dist', 9 * 5000 / FT_PER_NM)
+check('E15', 'AoC/D', 6000 / 30)
+check('E15', 'RoC/D', 120 * (6000 / 30) / 60)
+check('E15', 'Rat', 30 * FT_PER_NM / 6000)
+check('E16', 'RoC/D', 90 * 318 / 60)
+check('E19', 'ETA', (14.5 + 2.25) * 3600)
+check('E20', 'ETA', (22.75 + 3 - 24) * 3600)
+
+# ---------------------------------------------------------------- wind
+def comp(wspd, wdir, rwy_deg):
+    """cross (+ from the right) and head (+ on the nose) by projecting the wind vector"""
+    # unit vectors: along the runway and to its right
+    a = math.radians(rwy_deg)
+    along = (math.sin(a), math.cos(a)); right = (math.cos(a), -math.sin(a))
+    w = (-wspd * math.sin(math.radians(wdir)), -wspd * math.cos(math.radians(wdir)))   # air moving toward
+    head = -(w[0] * along[0] + w[1] * along[1])
+    cross = -(w[0] * right[0] + w[1] * right[1])
+    return cross, head
+x, h = comp(20, 330, 360)
+check('E17', 'X Wnd', x); check('E17', 'H Wnd', h)
+x, h = comp(12, 120, 270)
+check('E18', 'X Wnd', x); check('E18', 'H Wnd', h)
+
 def vec(spd, toward_deg):
-    a = math.radians(toward_deg)
-    return complex(spd * math.sin(a), spd * math.cos(a))   # x = east, y = north
+    r = math.radians(toward_deg)
+    return (spd * math.sin(r), spd * math.cos(r))
 
-def solve_heading(tc, tas, wdir, wspd):
-    """Find heading whose air+wind vector points along tc (bisection on the cross-track error)."""
-    w = vec(wspd, wdir + 180)
+def ground(tas, hdg, wspd, wdir):
+    a, w = vec(tas, hdg), vec(wspd, wdir + 180)
+    return (a[0] + w[0], a[1] + w[1])
+
+def solve_heading(tc, tas, wspd, wdir):
+    """heading whose ground track is tc, by bisection on the cross-track error"""
     def err(h):
-        g = vec(tas, h) + w
-        return math.degrees(math.atan2(g.real, g.imag)) - tc
-    lo, hi = tc - 89, tc + 89
-    def wrap(x): return (x + 180) % 360 - 180
-    for _ in range(200):
-        mid = (lo + hi) / 2
-        if wrap(err(lo)) * wrap(err(mid)) <= 0: hi = mid
-        else: lo = mid
-    h = (lo + hi) / 2
-    return h % 360, abs(vec(tas, h) + w)
+        g = ground(tas, h, wspd, wdir)
+        d = math.degrees(math.atan2(g[0], g[1])) - tc
+        return (d + 180) % 360 - 180
+    return bisect(err, tc - 60, tc + 60) % 360
 
-h, gs = solve_heading(90, 120, 45, 20)
-check('§4/T06', 'WCA (L) 090/120 wind 045/20', 6.8, 90 - h, 1)
-check('§4/T06', 'THdg', 83, h, 0)
-check('§4/T06', 'MHdg (Var 10 W)', 93, h + 10, 0)
-check('§4', 'CHdg (Dev -2)', 91, h + 10 - 2, 0)
-check('T06', 'MHdg (Var 10 E)', 73, h - 10, 0)
-check('§4/T06', 'GS', 105.02, gs, 2)
-# unknown wind from rounded inputs GS 105 / TAS 120 / TC 090 / TH 083
-wv = vec(105, 90) - vec(120, 83)            # wind vector, blowing toward
-check('§4', 'Unknown wind speed', 20.32, abs(wv), 2)
-check('§4', 'Unknown wind from', 44, (math.degrees(math.atan2(wv.real, wv.imag)) + 180) % 360, 0)
-# wind components
-for rwy, wd, ws, head, cross in [(270, 300, 20, 17.32, 10.00), (270, 120, 15, -12.99, -7.50)]:
-    a = math.radians(wd - rwy)
-    check('§4', f'Head/tail {rwy} {wd}/{ws}', head, ws * math.cos(a), 2)
-    check('§4', f'Cross {rwy} {wd}/{ws}', cross, ws * math.sin(a), 2)
+th = solve_heading(90, 128, 15, 210)
+g = ground(128, th, 15, 210)
+check('E23', 'THdg', th)
+check('E23', 'GS', math.hypot(*g))
+check('E23', 'WCA', th - 90)
+# find the wind: ground vector minus air vector
+gv, av = vec(140, 90), vec(128, 95)
+w = (gv[0] - av[0], gv[1] - av[1])
+check('E24', 'WSpd', math.hypot(*w))
+check('E24', 'WDir', wrap360(math.degrees(math.atan2(w[0], w[1])) + 180))
+# TAS for a ground speed: bisection on TAS
+th = None
+def gs_err(tas):
+    global th
+    th = solve_heading(270, tas, 25, 310)
+    return math.hypot(*ground(tas, th, 25, 310)) - 150
+tas = bisect(gs_err, 100, 300)
+check('E25', 'TAS', tas)
+check('E25', 'THdg', th)
 
-# practice problem from ASA's CX-3 training video (screen shows GS 134.84 KTS, THdg 96 °)
-hp, gp = solve_heading(90, 128, 210, 15)
-check('§4/T07', 'Practice GS (video: 134.84)', 134.84, gp, 2)
-check('§4/T07', 'Practice THdg (video: 96)', 96, hp, 0)
-check('§4/T07', 'Practice WCA (R)', 5.8, hp - 90, 1)
+check('E21', 'To', wrap360(45 + 180))
+check('E22', 'MHdg', 96 - 12)       # variation: west +, east −
+check('E22', 'CHdg', 96 - 12 + 2)
 
-# ---------------------------------------------------------------- rhumb line (numerical quadrature)
-def rhumb(lat1, lon1, lat2, lon2):
+# ---------------------------------------------------------------- rhumb line
+# A loxodrome crosses every meridian at the same angle; integrate its length
+# numerically. The CX-3 counts one minute of arc as one nautical mile.
+R = 60 * 180 / math.pi              # NM per radian
+def mercator(lat): return math.log(math.tan(math.pi / 4 + lat / 2))
+def rhumb(lat1, lon1w, lat2, lon2w):
     p1, p2 = math.radians(lat1), math.radians(lat2)
-    dl = math.radians(((lon2 - lon1 + 180) % 360) - 180)
-    n = 20000                                      # ∫ sec φ dφ by Simpson's rule
-    hstep = (p2 - p1) / n
-    s = sum((1 if i in (0, n) else 4 if i % 2 else 2) / math.cos(p1 + i * hstep) for i in range(n + 1))
-    merid = s * hstep / 3                          # meridional parts (isometric latitude difference)
-    crs = math.atan2(dl, merid)
-    dist = abs(p2 - p1) / abs(math.cos(crs)) * R_EARTH_NM
-    return math.degrees(crs) % 360, dist
+    dlon_east = math.radians(((lon1w - lon2w) + 180) % 360 - 180)
+    crs = math.atan2(dlon_east, mercator(p2) - mercator(p1))
+    n = 20000
+    dist = 0.0
+    for i in range(n):            # length = ∫ dφ / cos(course) — or ∫ cos φ dλ / sin(course) along an E-W line
+        a = p1 + (p2 - p1) * i / n
+        b = p1 + (p2 - p1) * (i + 1) / n
+        dist += abs(b - a) / abs(math.cos(crs))
+    return math.degrees(crs) % 360, dist * R
+crs, d = rhumb(40 + 38 / 60, 73 + 47 / 60, 33 + 56 / 60, 118.4)
+check('E26', 'TCrs', crs)
+check('E26', 'Dist', d)
+# point C: 100 NM due west from B along the parallel 33°56′
+lat_b = 33 + 56 / 60
+check('E26b', 'Long', (118.4 + 100 / (60 * math.cos(math.radians(lat_b)))) * 3600, nth=3)
 
-c, d = rhumb(40 + 38 / 60, -(73 + 47 / 60), 51 + 28 / 60, -27 / 60)
-check('§4', 'Rhumb JFK-LHR course', 78, c, 0)
-check('§4', 'Rhumb JFK-LHR distance', 3110.2, d, 1)
+# ---------------------------------------------------------------- holding (AIM 5-3-8)
+def entry(heading, radial, right=True):
+    inbound = (radial + 180) % 360
+    d = (heading - inbound + 360) % 360          # aircraft heading relative to the inbound course
+    if not right:
+        d = (360 - d) % 360                      # mirror image for left turns
+    if d <= 110 or d >= 290:
+        return 'Direct'
+    return 'Teardrop' if d <= 180 else 'Parallel'
+check_text('E27', 'Entry', entry(90, 360, True))
+check_text('E28', 'Entry', entry(90, 360, False))
 
-# ---------------------------------------------------------------- climb / descent / glide
-check('§4', 'Climb time 10 nm @ 90 kt (s)', 400, hms(10 / 90), 0)
-check('§4', 'Climb rate 3000 ft in 6:40', 450, 3000 / (10 / 90 * 60), 0)
-check('§4', 'Gradient ft/nm', 300, 3000 / 10, 0)
-check('§4', 'Climb angle', 2.8, math.degrees(math.atan2(3000 * FT, 10 * NM)), 1)
-check('§4', 'TOD time (s)', 960, hms(8000 / 500 / 60), 0)
-check('§4', 'TOD distance', 40.0, 150 * 8000 / 500 / 60, 1)
-check('§4', 'Required rate (FAA: ft/nm × GS/60)', 636, 318 * 120 / 60, 0)
-check('§4', 'Glide distance', 8.9, 6000 * 9 * FT / NM, 1)
-t = 6000 * 9 * FT / NM / 65
-check('§4', 'Glide time (s)', 8 * 60 + 12, hms(t), 0)
-check('§4', 'Sink rate', 731, 6000 / (t * 60), 0)
+# ---------------------------------------------------------------- trip plan
+def leg(tc, dist, tas, wdir, wspd, var, dev, rate):
+    h = solve_heading(tc, tas, wspd, wdir)
+    gs = math.hypot(*ground(tas, h, wspd, wdir))
+    ete = dist / gs
+    return dict(gs=gs, th=h, mh=h + var, ch=h + var + dev, ete=ete * 3600, fuel=rate * ete)
+l1 = leg(90, 100, 120, 270, 20, 5, 2, 9)
+check('E29', 'GS', l1['gs']); check('E29', 'TH', l1['th']); check('E29', 'MH', l1['mh']); check('E29', 'CH', l1['ch'])
+check('E29', 'Fuel', l1['fuel']); check('E29', 'ETE', l1['ete']); check('E29', 'ETA', 12 * 3600 + l1['ete'])
+l2 = leg(180, 85, 120, 270, 20, 5, 2, 9)
+check('E30', 'Dist', 100 + 85)
+check('E30', 'ETE', l1['ete'] + l2['ete'])
+check('E30', 'Fuel', l1['fuel'] + l2['fuel'])
 
-# ---------------------------------------------------------------- holding (wind part)
-h_in, _ = solve_heading(360, 120, 270, 20)
-wca = (h_in + 180) % 360 - 180
-check('§4/T10', 'Hold inbound heading', 350, h_in, 0)
-check('§4/T10', 'Hold WCA (L)', 9.6, -wca, 1)
-check('§4/T10', 'Hold outbound (3× WCA)', 209, (180 - 3 * wca) % 360, 0)
-check('§4', 'Teardrop R (150 - 3×WCA)', 179, (150 - 3 * wca) % 360, 0)
-check('T10', 'Teardrop L (210 - 3×WCA)', 239, (210 - 3 * wca) % 360, 0)
-
-# ---------------------------------------------------------------- flight plan
-def leg(tc, dist, tas, wdir, wspd, var, rate):
-    hd, g = solve_heading(tc, tas, wdir, wspd)
-    ete = dist / g
-    return hd, hd + var, g, ete, rate * ete
-l1 = leg(90, 120, 110, 360, 15, 5, 8.5)
-l2 = leg(180, 45, 110, 360, 15, 5, 8.5)
-for i, (name, shown, dp) in enumerate([('THdg', 82, 0), ('MHdg', 87, 0), ('GS', 108.97, 2)]):
-    check('§4/T13', 'LEG1 ' + name, shown, l1[i], dp)
-check('§4/T13', 'LEG1 ETE (s)', 3964, hms(l1[3]), 0)
-check('§4/T13', 'LEG1 fuel', 9.4, l1[4], 1)
-check('§4/T13', 'LEG2 GS', 125.00, l2[2], 2)
-check('§4/T13', 'LEG2 ETE (s)', 1296, hms(l2[3]), 0)
-check('§4/T13', 'LEG2 fuel', 3.1, l2[4], 1)
-check('§4/T13', 'Total ETE (s)', 5260, hms(l1[3] + l2[3]), 0)
-check('§4/T13', 'Total fuel', 12.4, l1[4] + l2[4], 1)
-check('T13', 'LEG2 GS with TAS 130', 145.00, leg(180, 45, 130, 360, 15, 5, 8.5)[2], 2)
-
-# ---------------------------------------------------------------- W/B (arithmetic)
-check('§4/T12', 'Mom item 1', 127500.0, 1500 * 85, 1)
-check('§4/T12', 'CG', 85.51, (1500 * 85 + 170 * 90) / 1670, 2)
-check('T12', 'Mom item 1 RF 100', 1275.0, 1500 * 85 / 100, 1)
-check('T12', 'Total mom RF 100', 1428.0, (1500 * 85 + 170 * 90) / 100, 1)
-check('§4', 'Weight shift CG change', 1.46, 50 * 70 / 2400, 2)
-check('§4', 'Weight to shift for 1.5 in', 51.4, 2400 * 1.5 / 70, 1)
-check('§4', 'Add 40 lb @120: new CG', 88.57, (2200 * 88 + 40 * 120) / 2240, 2)
-check('§4', 'Remove 40 lb @120: new CG', 87.41, (2200 * 88 - 40 * 120) / 2160, 2)
-check('§4', '%MAC', 20.0, (30 - 20) / 50 * 100, 1)
-check('§4', 'Profile endurance (s)', 5 * 3600 + 52 * 60 + 56, hms(50 / 8.5), 0)
-check('§4', 'Profile range', 676.5, 50 / 8.5 * 115, 1)
-
-# ---------------------------------------------------------------- unit conversions (exact definitions)
-check('§4/T04', '25 °C in °F', 77.0, 25 * 9 / 5 + 32, 1)
-check('§4/T04', '25 °C in K', 298.2, 25 + 273.15, 1)
-check('§4', '100 °C in °F', 212.0, 212, 1)
-check('§4', '100 nm in sm', 115.1, 100 * NM / 1609.344, 1)
-check('§4', '100 nm in km', 185.2, 100 * NM / 1000, 1)
+# ---------------------------------------------------------------- weight and balance
+items = [(1500, 40), (170, 37), (30, 48)]
+check('E31', 'Wt', sum(w for w, a in items), nth=4)
+check('E31', 'Mom', sum(w * a for w, a in items), nth=4)
+check('E31', 'CG', sum(w * a for w, a in items) / sum(w for w, a in items))
+items = [(1500, 40), (30, 48)]
+check('E32', 'CG', sum(w * a for w, a in items) / sum(w for w, a in items))
+check('E33', '∆CG', 50 * 100 / 2500)
+check('E34', '%MAC', (910.2 - 860.2) / 180.7 * 100)
 
 # ---------------------------------------------------------------- report
 bad = [r for r in results if not r[0]]
-for ok, case, name, shown, val in results:
-    print(('PASS ' if ok else 'FAIL ') + f'{case:7} {name:40} doc={shown!s:>10}  oracle={val}')
-print(f'\n{len(results) - len(bad)}/{len(results)} expected values confirmed independently')
+for ok, ex, label, text, val in results:
+    print(('ok  ' if ok else 'FAIL'), ex, label, 'shown', text, 'oracle', val)
+print('%d/%d expected values agree with the independent oracle' % (len(results) - len(bad), len(results)))
 raise SystemExit(1 if bad else 0)
