@@ -967,9 +967,12 @@
 
   function fit() {
     var dev = document.getElementById('device'), wrap = document.getElementById('stage');
-    var k = Math.min((window.innerWidth - 16) / dev.offsetWidth, (window.innerHeight - 16) / dev.offsetHeight, 1.6);
+    // phones: fill the width (tiny margin); larger screens: fit the whole device
+    var w = window.innerWidth, h = window.innerHeight, phone = w < 600;
+    var k = phone ? Math.min((w - 6) / dev.offsetWidth, (h - 4) / dev.offsetHeight)
+                  : Math.min((w - 16) / dev.offsetWidth, (h - 16) / dev.offsetHeight, 1.6);
     dev.style.transform = 'scale(' + k + ')';
-    wrap.style.height = Math.ceil(dev.offsetHeight * k + 16) + 'px';
+    wrap.style.height = Math.ceil(dev.offsetHeight * k + 8) + 'px';
   }
 
   function loop() {
