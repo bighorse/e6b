@@ -48,12 +48,17 @@
             toast: null, lastKey: Date.now(), enterDown: 0, offTimer: null };
 
   var saveTimer = null;
+  function saveNow() {
+    clearTimeout(saveTimer); saveTimer = null;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ }
+  }
   function save() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignore */ }
-    }, 200);
+    saveTimer = setTimeout(saveNow, 200);
   }
+  // flush when the page is hidden or closed (iOS may end a backgrounded web app at any time)
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') saveNow(); });
   function top() { return V.stack[V.stack.length - 1]; }
   function toast(t, ms) { V.toast = { text: t, until: Date.now() + (ms || 1400) }; }
 
@@ -68,8 +73,9 @@
     var neg = h < 0, t = Math.round(Math.abs(h) * 3600);
     return (neg ? '-' : '') + Math.floor(t / 3600) + ':' + pad(Math.floor(t / 60) % 60) + ':' + pad(t % 60);
   }
-  function fmtClock(h) {
-    var t = Math.round((((h % 24) + 24) % 24) * 60);
+  function fmtClock(h, trunc) {
+    var m = (((h % 24) + 24) % 24) * 60;
+    var t = trunc ? Math.floor(m + 1e-9) : Math.round(m);
     return pad(Math.floor(t / 60) % 24) + ':' + pad(t % 60);
   }
   function fmtDir(d) {
@@ -349,7 +355,7 @@
     else if (DIGITS.indexOf(k) >= 0) m.sel = Number(k);
     else if (k === 'M') {
       var val = currentValue(top());
-      if (val == null) { toast('No Value to Store'); return; }
+      if (val == null) { V.mem = null; toast('No Value to Store'); return; }
       S.mem[m.sel] = val; save(); toast('Stored M' + m.sel); V.mem = null;
     } else if (k === 'ENTER') {
       var v = S.mem[m.sel];
@@ -358,6 +364,7 @@
       insertNumber(top(), v);
     } else if (k === 'C') { S.mem[m.sel] = null; save(); }
     else if (k === 'BACK') V.mem = null;
+    else { V.mem = null; press(k); }          // any other key closes the panel and acts normally
   }
 
   function currentValue(scr) {
@@ -757,7 +764,7 @@
     var ic = '';
     if (S.tm.running) ic = '<span class="hic">' + (S.tm.mode ? '▼' : '▲') + '</span>';
     return '<div class="hdr"><span class="htag">' + esc(tag) + '</span>' +
-      '<span class="htime">' + fmtClock(utcHours()).replace(':', ':') + 'Z</span>' + ic +
+      '<span class="htime">' + fmtClock(utcHours(), true) + 'Z</span>' + ic +
       '<span class="hbat"><i></i></span></div>';
   }
   function cursor() { return '<span class="cur"></span>'; }
@@ -793,7 +800,7 @@
     var items = SETTINGS_DEF.map(function (d, i) {
       var r;
       if (d.kind === 'time') {
-        r = V.edit && i === scr.sel ? esc(V.edit.buf) + cursor() : fmtClock(utcHours()).replace(':', '') + 'Z';
+        r = V.edit && i === scr.sel ? esc(V.edit.buf) + cursor() : fmtClock(utcHours(), true).replace(':', '') + 'Z';
       } else if (d.opts) r = esc(d.opts[S.settings[d.id]]);
       else r = esc(d.value);
       return { l: esc(d.label), r: r };
@@ -833,7 +840,10 @@
 
   function renderCalc(scr) {
     var c = S.calc, h = header('CALC') + '<div class="tape">';
-    var lines = c.tape.slice(-5), off = c.tape.length - lines.length;
+    // show the last 5 lines, or a window that keeps the selected line visible
+    var off = Math.max(0, c.tape.length - 5);
+    if (scr.sel >= 0 && scr.sel < off) off = scr.sel;
+    var lines = c.tape.slice(off, off + 5);
     lines.forEach(function (t, i) {
       h += '<div class="tl' + (off + i === scr.sel ? ' sel' : '') + '"><span class="tx">' + esc(t.expr) + ' =</span><span class="tr">' +
         esc(t.time ? fmtHMS(t.value) : fmtCalc(t.value)) + '</span></div>';
