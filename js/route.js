@@ -19,15 +19,46 @@
     return t >= a && t < b;
   }
 
+  // round half away from zero, never −0
+  function rnd(x) { var r = (x < 0 ? -1 : 1) * Math.round(Math.abs(x)); return r === 0 ? 0 : r; }
+  // the numbers a pilot keys into a CX-3 PLAN leg: whole degrees and knots, tenths of a mile
+  function keyed(r, w, decl) {
+    return { dist: Math.round(r.dist * 10) / 10, tc: n360(rnd(r.tc)), wdir: w && w.dir != null ? n360(rnd(w.dir)) : 0,
+             wspd: w ? rnd(w.spd) : 0, varW: rnd(-decl), dev: 0 };
+  }
+
+  /* One PLAN leg worked out by the CX-3's own model (so the numbers here are the
+   * numbers PLAN shows). k: keyed values · tas kt · frate gph · dep: seconds of the day.
+   * Returns base-unit values (m/s, °, s, L) or null when the leg has no solution. */
+  function cx3Leg(k, tas, frate, dep) {
+    var Md = root.Model || require('./model.js'), U = root.Units || require('./units.js');
+    var snap = Md.saveState(), V = Md.vars, out = null;
+    function put(id, unit, x) { var v = V[id], d = U.DIMS[v.dim]; v.clear(); v.set(U.toBase(d.units[U.unitIndex(v.dim, unit)], x), false); }
+    try {
+      Md.reset(); Md.legAdd();
+      put('l0dist', 'NM', k.dist); put('l0tc', '°', k.tc); put('l0tas', 'KTS', tas);
+      put('l0wdir', '°', k.wdir); put('l0wspd', 'KTS', k.wspd); put('l0var', '°', k.varW); put('l0dev', '°', k.dev);
+      if (frate) put('l0frate', 'US GPH', frate);
+      V.l0dep.clear(); V.l0dep.set(dep, false);
+      if (V.l0gs_o.has && V.l0ete_o.has) {
+        out = { gs: V.l0gs_o.v, th: V.l0th_o.v, mh: V.l0mh_o.v, ch: V.l0ch_o.v, wca: V.l0wca_o.v, ete: V.l0ete_o.v,
+                eta: V.l0eta_o.v, fuel: V.l0fuel_o.has ? V.l0fuel_o.v : null };
+      }
+    } finally { Md.loadState(snap); }
+    return out;
+  }
+
   /* points: [{id, lat, lon}] · o: {alt ft, dep ms, tas kt?, frate gph?, source 'auto'|'fb'|'model'}
    * data: {fb: winds.json | null, model: [Open-Meteo location per leg] | null} */
   function plan(points, o, data) {
-    var legs = [], t = o.dep, tot = { dist: 0, ete: 0, fuel: 0, timed: true };
+    var legs = [], t = o.dep, d0 = new Date(o.dep);
+    var dep = d0.getUTCHours() * 3600 + d0.getUTCMinutes() * 60;     // PLAN Depart, whole minutes
+    var tot = { dist: 0, ete: 0, fuel: 0, timed: !!o.tas, eta: null };
     for (var i = 0; i < points.length - 1; i++) {
       var a = points[i], b = points[i + 1], A = [a.lat, a.lon], B = [b.lat, b.lon];
       var r = Nav.rhumb(A, B), mid = Nav.midpoint(A, B);
-      var decl = WMM.declination(mid[0], mid[1], o.alt, new Date(o.dep));
-      var L = { from: a, to: b, tc: r.tc, dist: r.dist, mid: mid, decl: decl, varW: -decl, mc: n360(r.tc - decl), tStart: t };
+      var decl = WMM.declination(mid[0], mid[1], o.alt, d0);
+      var L = { from: a, to: b, tc: r.tc, dist: r.dist, mid: mid, decl: decl, mc: n360(r.tc - decl), tStart: t };
       // wind at the leg's midpoint, at the time the aircraft gets there
       var tMid = t, w = null, wm = null;
       for (var pass = 0; pass < 2; pass++) {
@@ -40,19 +71,19 @@
         tMid = t + r.dist / tri.gs / 2 * 3600000;
       }
       L.wind = w; L.modelWind = wm; L.tMid = tMid;
-      if (o.tas) {
-        var tr = triangle(r.tc, o.tas, w);
-        if (tr) {
-          L.th = tr.th; L.wca = tr.wca; L.gs = tr.gs; L.ete = r.dist / tr.gs;
-          L.mh = n360(tr.th - decl);
-          if (o.frate) { L.fuel = o.frate * L.ete; tot.fuel += L.fuel; }
-          tot.ete += L.ete; t += L.ete * 3600000;
+      L.k = keyed(r, w, decl);
+      L.depart = dep;
+      tot.dist += L.k.dist;
+      if (o.tas && tot.timed) {
+        L.cx = cx3Leg(L.k, o.tas, o.frate, dep);
+        if (L.cx) {
+          tot.ete += L.cx.ete; t += L.cx.ete * 1000; dep = L.cx.eta; tot.eta = L.cx.eta;
+          if (L.cx.fuel != null) tot.fuel += L.cx.fuel;
         } else tot.timed = false;
-      } else tot.timed = false;
-      tot.dist += r.dist;
+      }
       legs.push(L);
     }
-    tot.eta = tot.timed ? t : null;
+    if (!tot.timed) tot.eta = null;
     return { legs: legs, total: tot };
   }
 
@@ -66,7 +97,7 @@
     return { wca: wca, th: n360(tc + wca), gs: gs };
   }
 
-  var Route = { plan: plan, triangle: triangle, fbCovers: fbCovers, n180: n180 };
+  var Route = { plan: plan, triangle: triangle, fbCovers: fbCovers, n180: n180, keyed: keyed, cx3Leg: cx3Leg };
   root.Route = Route;
   if (typeof module !== 'undefined') module.exports = Route;
 
@@ -74,6 +105,7 @@
   if (typeof document === 'undefined') return;
   var $ = function (id) { return document.getElementById(id); };
   var STORE_KEY = 'cx3-sim-v3', FORM_KEY = 'cx3-route-form';
+  var KT = 1852 / 3600, GPH = 3.7854118 / 3600;              // base units: m/s, L/s
   var last = null;
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -141,6 +173,28 @@
     }).catch(function (e) { status('出错：' + e.message, true); });
   }
 
+  // the simulator's saved settings (units chosen in SET and on the PLAN screens)
+  function simState() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || {}; } catch (e) { return {}; } }
+  // a PLAN value as the CX-3 shows it there: the unit that screen uses, its decimals.
+  // scr: 'leg0'…'leg4' or 'total'; id: the variable. Returns [text, unit name]
+  function cx(scr, id, base) {
+    var U = root.Units, v = root.Model.vars[id], d = U.DIMS[v.dim], S = simState(), set = S.set || {}, units = S.units || {};
+    var a = units[scr + '.' + id], b = units[scr + '#' + v.dim], i;
+    if (set.unitmode === 1 && a != null) i = a;
+    else if (b != null) i = b;
+    else if (a != null) i = a;
+    else if (v.unit) i = U.unitIndex(v.dim, v.unit);
+    else i = U.defaultIndex(v.dim, set.units === 1);
+    var u = d.units[i];
+    return [U.format(v.dim, u, base), u.name];
+  }
+  // value span + unit for the page
+  function show(attr, name, scr, id, base) {
+    var t = cx(scr, id, base);
+    return '<span data-' + attr + '="' + name + '">' + t[0] + '</span>' + (t[1] && t[1] !== '°' ? ' ' + esc(t[1]) : t[1] === '°' ? '°' : '');
+  }
+  function varKey(v) { return v < 0 ? (-v) + ' 再按 ±（东偏）' : v > 0 ? v + '（西偏）' : '0'; }
+
   function render(L) {
     var o = L.o, R = L.result, h = '';
     h += '<section class="card"><h2>航点</h2><ol class="pts">';
@@ -149,21 +203,34 @@
         (p.elev != null ? ' · ' + p.elev + ' ft' : '') + (p.others ? ' · 同名 ' + (p.others + 1) + ' 个，取离上一航点最近的' : '') + '</span></li>';
     });
     h += '</ol></section>';
+    if (R.legs.length > 5) h += '<p class="warn">CX-3 的 PLAN 最多 5 段：只有前 5 段会送入 PLAN。</p>';
     R.legs.forEach(function (g, i) {
-      var w = g.wind;
-      h += '<section class="card leg"><h2>Leg ' + (i + 1) + ' <span class="dim">' + esc(g.from.ident || g.from.id) + ' → ' + esc(g.to.ident || g.to.id) + '</span>' +
-        (i >= 5 ? ' <span class="warn">CX-3 只有 5 段</span>' : '') + '</h2><dl>' +
-        row('TCrs 真航迹', deg(g.tc) + '°', 'CX-3 TCrs') +
-        row('Dist 距离', g.dist.toFixed(1) + ' NM', 'CX-3 Dist') +
-        row('磁差', varText(g.decl), 'CX-3 Var 输入 ' + cx3Var(g.decl)) +
-        row('磁航迹 MC', deg(g.mc) + '°', '≈ G1000 DTK') +
-        row('高空风', windText(w), w ? 'CX-3 WDir / WSpd · ' + srcText(w) : '无数据') +
-        row('气温 OAT', tempText(w && w.temp), o.alt + ' ft');
-      if (g.gs) h += row('真航向 TH', deg(g.th) + '°', 'WCA ' + (g.wca >= 0 ? '+' : '') + g.wca.toFixed(0) + '°') +
-        row('磁航向 MH', deg(g.mh) + '°', '') + row('地速 GS', g.gs.toFixed(0) + ' kt', '') +
-        row('ETE', hm(g.ete), '起 ' + z(g.tStart)) + (g.fuel != null ? row('燃油', g.fuel.toFixed(1) + ' gal', '') : '');
-      else if (o.tas) h += row('航向/地速', '风速超过 TAS，无解', '');
-      h += '</dl>';
+      var w = g.wind, k = g.k, c = g.cx, sc = 'leg' + Math.min(i, 4), lp = 'l' + Math.min(i, 4);
+      h += '<section class="card leg" data-leg="' + i + '"><h2>Leg ' + (i + 1) + ' <span class="dim">' + esc(g.from.ident || g.from.id) + ' → ' + esc(g.to.ident || g.to.id) + '</span>' +
+        (i >= 5 ? ' <span class="warn">不送入 PLAN</span>' : '') + '</h2>' +
+        '<h3>在 CX-3 PLAN 里输入</h3><dl class="keys">' +
+        row('Dist', show('k', 'Dist', sc, lp + 'dist', k.dist * 1852), '等角航线 ' + g.dist.toFixed(2) + ' NM') +
+        row('TCrs', show('k', 'TCrs', sc, lp + 'tc', k.tc), '真航迹 ' + g.tc.toFixed(1) + '°') +
+        (o.tas ? row('TAS', show('k', 'TAS', sc, lp + 'tas', o.tas * KT), '') : '') +
+        row('WDir', show('k', 'WDir', sc, lp + 'wdir', k.wdir), w ? (w.dir == null ? '风小风向不定' : '真北 ' + w.dir.toFixed(0) + '°') + ' · ' + srcText(w) : '无风数据，按无风计算') +
+        row('WSpd', show('k', 'WSpd', sc, lp + 'wspd', k.wspd * KT), w ? w.spd.toFixed(1) + ' kt' : '') +
+        row('Var', show('k', 'Var', sc, lp + 'var', k.varW), '磁差 ' + varText(g.decl) + '，按 ' + varKey(k.varW)) +
+        row('Dev', show('k', 'Dev', sc, lp + 'dev', 0), '按罗盘修正卡改') +
+        (o.frate ? row('Fuel Rate', show('k', 'Fuel Rate', sc, lp + 'frate', o.frate * GPH), o.frate + ' gal/hr') : '') +
+        (i === 0 ? row('Depart', show('k', 'Depart', sc, lp + 'dep', g.depart), '以后各段由上一段 ETA 自动带入') : '') +
+        '</dl>' +
+        '<h3>参考</h3><dl>' + row('磁航迹 MC', deg(g.mc) + '°', '≈ G1000 DTK') + row('气温 OAT', tempText(w && w.temp), o.alt + ' ft') + '</dl>';
+      if (c) {
+        h += '<h3>CX-3 算出（与 PLAN 一致）</h3><dl class="calc">' +
+          row('GS', show('c', 'GS', sc, lp + 'gs_o', c.gs), '') +
+          row('CH', show('c', 'CH', sc, lp + 'ch_o', c.ch), '') +
+          row('MH', show('c', 'MH', sc, lp + 'mh_o', c.mh), '') +
+          row('TH', show('c', 'TH', sc, lp + 'th_o', c.th), '') +
+          row('WCA', show('c', 'WCA', sc, lp + 'wca_o', c.wca), '') +
+          (c.fuel != null ? row('Fuel', show('c', 'Fuel', sc, lp + 'fuel_o', c.fuel), '') : '') +
+          row('ETE', show('c', 'ETE', sc, lp + 'ete_o', c.ete), '') +
+          row('ETA', show('c', 'ETA', sc, lp + 'eta_o', c.eta), '') + '</dl>';
+      } else if (o.tas) h += '<p class="warn">风速超过 TAS，这一段无解，后面的段不计时。</p>';
       if (w && w.source === 'FB') {
         h += '<details><summary>FB 原文（' + w.stations.map(function (s) { return s.id + ' ' + Math.round(s.nm) + ' NM'; }).join('，') + '）</summary><pre>FT  ' +
           w.period.levels.map(function (l) { return ('     ' + l).slice(-6); }).join(' ') + '\n' + w.stations.map(function (s) { return esc(s.raw); }).join('\n') +
@@ -173,9 +240,10 @@
       h += '</section>';
     });
     var t = R.total;
-    h += '<section class="card"><h2>全程</h2><dl>' + row('距离', t.dist.toFixed(1) + ' NM', '') +
-      (t.timed ? row('ETE', hm(t.ete), '') + row('ETA', z(t.eta), '') + (o.frate ? row('燃油', t.fuel.toFixed(1) + ' gal', '巡航段，不含滑行爬升和备份油') : '') : '') +
-      '</dl></section>';
+    h += '<section class="card"><h2>全程</h2><dl class="total">' + row('Dist', show('t', 'Dist', 'total', 'tdist', t.dist * 1852), '') +
+      (t.timed ? row('ETE', show('t', 'ETE', 'total', 'tete', t.ete), '') + row('ETA', show('t', 'ETA', 'total', 'teta', t.eta), '') +
+        (o.frate ? row('Fuel', show('t', 'Fuel', 'total', 'tfuel', t.fuel), '巡航段，不含滑行爬升和备份油') : '') : '') +
+      '</dl>' + (R.legs.length > 5 ? '<p class="dim">全程含全部 ' + R.legs.length + ' 段；PLAN 的 Total Trip 只算前 5 段。</p>' : '') + '</section>';
     if (L.modelError) h += '<p class="dim">数值模式数据暂时取不到（' + esc(L.modelError) + '）。</p>';
     h += '<div class="actions"><button id="send" class="primary">送入 CX-3 PLAN</button><button id="copy">复制文字</button></div>';
     $('out').innerHTML = h;
@@ -191,9 +259,11 @@
   function text() {
     var o = last.o, s = 'Route ' + o.route.toUpperCase() + '  ' + o.alt + ' ft  dep ' + z(o.dep) + '\n';
     last.result.legs.forEach(function (g, i) {
-      s += 'Leg ' + (i + 1) + ' ' + (g.from.ident || g.from.id) + '-' + (g.to.ident || g.to.id) + ': TC ' + deg(g.tc) + ' Dist ' + g.dist.toFixed(1) +
-        ' Var ' + varText(g.decl) + ' MC ' + deg(g.mc) + ' Wind ' + windText(g.wind) + (g.wind && g.wind.temp != null ? ' OAT ' + Math.round(g.wind.temp) + 'C' : '') +
-        (g.gs ? ' TH ' + deg(g.th) + ' GS ' + g.gs.toFixed(0) + ' ETE ' + hm(g.ete) : '') + '\n';
+      var k = g.k, c = g.cx;
+      s += 'Leg ' + (i + 1) + ' ' + (g.from.ident || g.from.id) + '-' + (g.to.ident || g.to.id) + ': Dist ' + k.dist.toFixed(1) + ' TCrs ' + k.tc +
+        ' WDir ' + k.wdir + ' WSpd ' + k.wspd + ' Var ' + k.varW + ' (MC ' + deg(g.mc) + ')' +
+        (c ? ' -> GS ' + cx('leg0', 'l0gs_o', c.gs).join(' ') + ' TH ' + cx('leg0', 'l0th_o', c.th)[0] + ' MH ' + cx('leg0', 'l0mh_o', c.mh)[0] +
+             ' ETE ' + cx('leg0', 'l0ete_o', c.ete)[0] : '') + '\n';
     });
     return s;
   }
@@ -220,16 +290,16 @@
     }
     last.result.legs.slice(0, Md.MAX_LEGS).forEach(function (g, i) {
       Md.legAdd();
-      var p = 'l' + i, w = g.wind;
-      put(p + 'dist', 'NM', Math.round(g.dist * 10) / 10);
-      put(p + 'tc', '°', Math.round(n360(g.tc)));
-      if (o.tas) put(p + 'tas', 'KTS', o.tas);
-      put(p + 'wdir', '°', w && w.dir != null ? Math.round(w.dir) : 0);
-      put(p + 'wspd', 'KTS', w ? Math.round(w.spd) : 0);
-      put(p + 'var', '°', Math.round(-g.decl * 10) / 10);
-      if (!V[p + 'dev'].has || V[p + 'dev'].copied) put(p + 'dev', '°', 0);
-      if (o.frate) put(p + 'frate', 'US GPH', o.frate);
-      if (i === 0) { var d = new Date(o.dep); put(p + 'dep', 'UTC', d.getUTCHours() * 3600 + d.getUTCMinutes() * 60); }
+      var p = 'l' + i, k = g.k;
+      put(p + 'dist', 'NM', k.dist);
+      put(p + 'tc', '°', k.tc);
+      if (o.tas) put(p + 'tas', 'KTS', o.tas); else V[p + 'tas'].clear();
+      put(p + 'wdir', '°', k.wdir);
+      put(p + 'wspd', 'KTS', k.wspd);
+      put(p + 'var', '°', k.varW);
+      put(p + 'dev', '°', k.dev);
+      if (o.frate) put(p + 'frate', 'US GPH', o.frate); else V[p + 'frate'].clear();
+      if (i === 0) { V.l0dep.clear(); V.l0dep.set(g.depart, false); }
     });
     S.model = Md.saveState();
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { return status('无法保存（浏览器禁止了本地存储）', true); }

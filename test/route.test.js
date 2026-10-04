@@ -91,11 +91,25 @@ test('KCOU → KMHL: true course, distance, variation; leg plan with a known win
   near(g.decl, WMM.declination(g.mid[0], g.mid[1], 5500, new Date(Date.UTC(2026, 9, 4, 10))), 1e-9, 'variation at the midpoint');
   assert.ok(g.decl < 0 && g.decl > -1, 'a little west in central Missouri');
   near(g.mc, r.tc - g.decl, 1e-9, 'magnetic course');
-  // 270° at 20 kt on a 290° course: WCA = asin(20·sin(−20°)/110) = −3.6°, GS = 110·cos(WCA) − 20·cos(−20°)
+  // what goes into PLAN: whole degrees and knots, tenths of a mile, Var west +
+  assert.deepStrictEqual(g.k, { dist: Math.round(r.dist * 10) / 10, tc: 290, wdir: 270, wspd: 20, varW: 0, dev: 0 });
+  // the CX-3 result for those keyed values: 270° at 20 kt on a 290° course, TAS 110
   const wca = Math.asin(20 * Math.sin(-20 * Math.PI / 180) / 110) * 180 / Math.PI;
-  near(g.wca, wca, 0.05, 'WCA'); near(g.gs, 110 * Math.cos(wca * Math.PI / 180) - 20 * Math.cos(20 * Math.PI / 180), 0.05, 'GS');
-  near(g.fuel, 8.5 * g.dist / g.gs, 1e-9, 'fuel');
+  const th = 290 + wca, gsx = 110 * Math.sin(th * Math.PI / 180) + 20 * Math.sin(90 * Math.PI / 180), gsy = 110 * Math.cos(th * Math.PI / 180);
+  const gs = Math.hypot(gsx, gsy) / 3600 * 1852;                                // m/s
+  near(g.cx.wca, wca, 1e-6, 'WCA'); near(g.cx.th, th, 1e-6, 'TH'); near(g.cx.mh, th, 1e-6, 'MH (Var 0)');
+  near(g.cx.gs, gs, 1e-6, 'GS');
+  near(g.cx.ete, g.k.dist * 1852 / gs, 1e-6, 'ETE (s)');
+  near(g.cx.eta, 10 * 3600 + g.k.dist * 1852 / gs, 1e-6, 'ETA (s of day)');
+  near(g.cx.fuel, 8.5 * 3.7854118 * g.k.dist * 1852 / gs / 3600, 1e-6, 'fuel (L)');
   assert.strictEqual(p.total.timed, true);
+});
+
+test('keyed values round half away from zero and wrap 360 to 0', () => {
+  const k = Route.keyed({ dist: 12.345, tc: 359.6 }, { dir: 0.4, spd: 7.5 }, 0.5);
+  assert.deepStrictEqual(k, { dist: 12.3, tc: 0, wdir: 0, wspd: 8, varW: -1, dev: 0 });
+  assert.strictEqual(Route.keyed({ dist: 1, tc: 10 }, { dir: null, spd: 0 }, -0.4).varW, 0);   // never −0
+  assert.strictEqual(Route.keyed({ dist: 1, tc: 10 }, null, 13.1).varW, -13);                 // east: minus
 });
 
 test('a wind stronger than the TAS has no heading', () => {
