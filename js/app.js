@@ -753,9 +753,23 @@
     if (V.power) render();
   }
 
+  // the route helper writes PLAN legs into the saved state, then opens index.html#plan
+  function openFromHash() {
+    if (location.hash !== '#plan') return;
+    history.replaceState(null, '', location.pathname + location.search);
+    setStack(listScr('list', 'PLAN', 0));
+  }
+  // another tab (the route helper) changed the saved state: take it over
+  window.addEventListener('storage', function (e) {
+    if (e.key !== STORE_KEY || !e.newValue) return;
+    try { S = loadState(JSON.parse(e.newValue)); render(); } catch (err) { /* ignore */ }
+  });
+
   document.addEventListener('DOMContentLoaded', function () {
     bind();
     powerOn();
+    openFromHash();
+    window.addEventListener('hashchange', function () { openFromHash(); render(); });
     setInterval(loop, 100);
   });
 
