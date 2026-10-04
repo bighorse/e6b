@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#e9eaec">
+<title>航线助手 · CX-3</title>
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root { --bg: #e9eaec; --card: #fff; --ink: #1d2126; --dim: #6b737c; --line: #dfe2e6; --accent: #d8762f; --err: #b3261e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+         padding: max(12px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  main { max-width: 560px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  h1 { font-size: 21px; margin: 0; }
+  a.back { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  h3 { font-size: 13px; font-weight: 600; color: var(--accent); margin: 14px 0 2px; }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 10px 0 4px; }
+  label:first-child { margin-top: 0; }
+  input, select { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfbfc; color: var(--ink); }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .hint, .dim { color: var(--dim); font-size: 13px; }
+  #depz { font-size: 13px; color: var(--dim); }
+  button { font: inherit; font-weight: 600; padding: 11px 16px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  form button { width: 100%; margin-top: 14px; }
+  .status { min-height: 22px; margin: 4px 2px 10px; font-size: 14px; color: var(--dim); }
+  .status.err { color: var(--err); }
+  dl { margin: 0; }
+  dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+  dl > div:first-child { border-top: 0; }
+  dt { color: var(--dim); font-size: 14px; white-space: nowrap; }
+  dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  dd small { display: block; font-weight: 400; color: var(--dim); font-size: 12px; }
+  .warn { color: var(--err); font-size: 12px; font-weight: 600; }
+  ol.pts { margin: 0; padding-left: 20px; }
+  ol.pts li { margin: 3px 0; }
+  details { margin-top: 8px; font-size: 13px; }
+  summary { color: var(--accent); cursor: pointer; }
+  pre { overflow-x: auto; font-size: 12px; background: #f4f5f7; padding: 8px; border-radius: 6px; }
+  .actions { display: flex; gap: 10px; margin: 4px 0 14px; }
+  .actions button { flex: 1; }
+  .note { font-size: 13px; color: var(--dim); }
+  .note p { margin: 6px 0; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>航线助手</h1><a class="back" href="index.html">← CX-3</a></header>
+
+  <form id="form" class="card" autocomplete="off" novalidate>
+    <label for="route">航路</label>
+    <input id="route" placeholder="KCOU KMHL" autocapitalize="characters" spellcheck="false">
+    <div class="hint">机场（KCOU、ZBAA、COU）、VOR/NDB 代码或坐标（38.82/-92.22、N3849.1W09213.1），空格隔开</div>
+    <div class="grid">
+      <div><label for="alt">巡航高度 ft MSL</label><input id="alt" type="number" inputmode="numeric" step="any" value="5500"></div>
+      <div><label for="src">高空风来源</label>
+        <select id="src"><option value="auto">自动（美国用 FB）</option><option value="fb">只用官方 FB</option><option value="model">数值模式（全球）</option></select></div>
+      <div><label for="tas">TAS kt（可选）</label><input id="tas" type="number" inputmode="decimal" step="any" placeholder="110"></div>
+      <div><label for="frate">油耗 gal/hr（可选）</label><input id="frate" type="number" inputmode="decimal" step="any" placeholder="8.5"></div>
+    </div>
+    <label for="dep">起飞时间（本机时区）</label>
+    <input id="dep" type="datetime-local">
+    <div id="depz"></div>
+    <button class="primary" type="submit">查询</button>
+  </form>
+
+  <div id="status" class="status"></div>
+  <div id="out"></div>
+
+  <section class="card note">
+    <h2>数据从哪里来</h2>
+    <p><b>真航迹、距离</b>：按两点坐标计算等角航线（与 CX-3 的 Rhumb Line 相同），坐标来自 OurAirports 数据库。G1000 按大圆飞，长航段的 DTK 会和这里差一两度。</p>
+    <p><b>磁差</b>：NOAA 的 WMM2025 世界磁场模型，取航段中点、起飞日期。CX-3 的 Var 西偏为正，所以送入 PLAN 时取反。</p>
+    <p><b>高空风</b>：美国本土用 aviationweather.gov 的官方 FB 预报（每小时更新一次网站副本），按离航段中点最近的 1–3 个站和上下两个高度插值；其他地区或选“数值模式”时用 Open-Meteo 的全球气象模式预报，按巡航高度插值。</p>
+    <p>这是计划练习工具，不是正式的飞行前气象简报。起飞前请用官方渠道（美国：1800wxbrief.com、aviationweather.gov；中国：民航气象部门）核对。</p>
+  </section>
+</main>
+<script src="js/units.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/model.js"></script>
+<script src="js/wmm.js"></script>
+<script src="js/winds.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/route.js"></script>
+</body>
+</html>
