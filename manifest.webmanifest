@@ -1,0 +1,16 @@
+{
+  "name": "CX-3 Flight Computer",
+  "short_name": "CX-3",
+  "description": "Browser simulator of the CX-3 electronic flight computer",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e9eaec",
+  "theme_color": "#e9eaec",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
