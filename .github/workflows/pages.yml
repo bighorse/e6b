@@ -4,9 +4,6 @@ on:
   push:
     branches: [main, master, feature/cx3-flight-computer]
   workflow_dispatch:
-  # refresh the US winds aloft (FB) on the site every hour
-  schedule:
-    - cron: '23 * * * *'
 
 permissions:
   contents: write
